@@ -16,6 +16,7 @@ class UtilityList {
 	int item;  // the item
 	float sumIutils = 0;  // the sum of item utilities
 	float sumRutils = 0;  // the sum of remaining utilities
+	float sumPro = 0;
 	//List<Element> elements = new ArrayList<Element>();  // the elements
 	HashMap<Integer,Batch> batches = new HashMap<Integer,Batch>();
 	/**
@@ -29,7 +30,7 @@ class UtilityList {
 		this.item = item;
 		for(int i=1;i<=winSize;i++)
 		{
-			Batch b=new Batch(i,0,0);
+			Batch b=new Batch(i,0,0,0);
 			batches.put(i,b);
 		}
 	}
@@ -38,7 +39,7 @@ class UtilityList {
 		this.item = item;
 		for(int i=0;i<winSize;i++)
 		{
-			Batch b=new Batch(win_number+i,0,0);
+			Batch b=new Batch(win_number+i,0,0,0);
 			batches.put(win_number+i, b);
 		}
 
@@ -62,6 +63,7 @@ class UtilityList {
 	public void addElement(Element element,int winSize,int number_transactions){
 		sumIutils += element.iutils;
 		sumRutils += element.rutils;
+		sumPro += element.pro;
 		int batch_number=0;
 		
 		if (element.tid%number_transactions==0)
@@ -73,6 +75,7 @@ class UtilityList {
 			batches.get(batch_number).elements.add(element);
 			batches.get(batch_number).sum_batch_iutils+=element.iutils;
 			batches.get(batch_number).sum_batch_rutils+=element.rutils;
+			batches.get(batch_number).sum_batch_pro+=element.pro;
 			
 		}catch(Exception e)
 		{

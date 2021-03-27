@@ -15,7 +15,10 @@ class Element {
 	/** itemset utility */
 	final float iutils; 
 	/** remaining utility */
-	final float rutils; 
+	final float rutils;
+
+	//probability
+	final float pro;
 	
 	/**
 	 * Constructor.
@@ -23,9 +26,10 @@ class Element {
 	 * @param iutils  the itemset utility
 	 * @param rutils  the remaining utility
 	 */
-	public Element(int tid, float iutils, float rutils){
+	public Element(int tid, float iutils, float rutils,float pro){
 		this.tid = tid;
 		this.iutils = iutils;
 		this.rutils = rutils;
+		this.pro = pro;
 	}
 }

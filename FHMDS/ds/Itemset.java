@@ -29,6 +29,7 @@ public class Itemset {
 	 int[] itemset;
 	 Float utility = 0F;
 	 Float last_batch_utility=0F;
+	 Float pro=0F;
 	 
 	/**
 	 * Constructor
