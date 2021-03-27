@@ -14,6 +14,7 @@ import java.util.HashMap;
  */
 class UtilityList {
 	int item;  // the item
+	//test git
 	float sumIutils = 0;  // the sum of item utilities
 	float sumRutils = 0;  // the sum of remaining utilities
 	//List<Element> elements = new ArrayList<Element>();  // the elements
