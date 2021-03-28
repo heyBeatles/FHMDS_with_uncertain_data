@@ -2,12 +2,14 @@ package FHMDS.ds;
 
 import java.util.HashMap;
 
-public class FMAP_TWU {
+public class FMAP_TWU_and_Pro {
 
 	//The variable stores the complete TWU of item in the window
 	float sumTWU=0;
+	float sumPro=0;
 	//This map stores the batch wise TWU of an item
 	HashMap<Integer,Float> fmap_twu=new HashMap<Integer,Float>();
+	HashMap<Integer,Float> fmap_pro = new HashMap<>();
 	
 	/**
 	 * The constructor constructs the respective batch numbers
@@ -15,11 +17,12 @@ public class FMAP_TWU {
 	 * @param winSize
 	 * @param win_number
 	 */
-	public FMAP_TWU(int winSize,int win_number){
+	public FMAP_TWU_and_Pro(int winSize,int win_number){
 		
 		for(int i=0;i<winSize;i++)
 		{
 			fmap_twu.put(win_number+i, 0F);
+			fmap_pro.put(win_number+i,0F);
 		}
 
 	}
@@ -30,16 +33,19 @@ public class FMAP_TWU {
 	 * @param winSize
 	 * @param win_number
 	 */
-	void updateTWU(int winSize, int win_number)
+	void updateTWUandPro(int winSize, int win_number)
 	{
 		try {
 		
 			fmap_twu.put(winSize+win_number-1, 0F);
+			fmap_pro.put(winSize+win_number-1, 0F);
 			sumTWU=sumTWU-fmap_twu.get(winSize+win_number-1-winSize);
+			sumPro=sumPro-fmap_pro.get(winSize+win_number-1-winSize);
 			fmap_twu.remove(winSize+win_number-1-winSize);
+			fmap_pro.remove(winSize+win_number-1-winSize);
 		}catch(Exception e)
 		{
-			System.out.println("updateTWU fmap");
+			System.out.println("updateTWUandPro fmap");
 		}
 	}
 	 
@@ -50,16 +56,18 @@ public class FMAP_TWU {
 	 * @param win_number
 	 * @param batch_number
 	 */
-	 	void updateTWU(int winSize, int win_number,int batch_number)
+	 	void updateTWUandPro(int winSize, int win_number,int batch_number)
 		{
 			try {
-			
+				fmap_pro.put(batch_number,0F);
 				fmap_twu.put(batch_number, 0F);
 				sumTWU=sumTWU-fmap_twu.get(winSize+win_number-1-winSize);
+				sumPro=sumPro-fmap_pro.get(winSize+win_number-1-winSize);
 				fmap_twu.remove(winSize+win_number-1-winSize);
+				fmap_pro.remove(winSize+win_number-1-winSize);
 			}catch(Exception e)
 			{
-				System.out.println("updateTWU fmap");
+				System.out.println("updateTWUandPro fmap");
 			}
 		} 
 	 	
@@ -68,15 +76,18 @@ public class FMAP_TWU {
 	 	 * @param batch_number
 	 	 * @param twu
 	 	 */
-	 	void addTWU(int batch_number,float twu)
+	 	void addTWUandPro(int batch_number,float twu,float pro)
 	 	{
 	 		try{
 				Float oldtwu=fmap_twu.get(batch_number);
 				fmap_twu.put(batch_number, oldtwu+twu);
 				sumTWU+=twu;
+				Float oldpro=fmap_pro.get(batch_number);
+				fmap_pro.put(batch_number, oldpro+pro);
+				sumPro+=pro;
 			}catch(Exception e)
 			{
-				System.out.println("Exception in addTWU fmap");
+				System.out.println("Exception in addTWUandPro fmap");
 			}
 	 		
 	 	}
@@ -88,7 +99,7 @@ public class FMAP_TWU {
 	 	 * @param winSize
 	 	 * @param number_transactions
 	 	 */
-	 void addTWU(Float twu,int tid,int winSize,int number_transactions)
+	 void addTWUandPro(Float twu,Float pro,int tid,int winSize,int number_transactions)
 	{
 		int batch_number=0;
 		
@@ -100,9 +111,12 @@ public class FMAP_TWU {
 			Float oldtwu=fmap_twu.get(batch_number);
 			fmap_twu.put(batch_number, oldtwu+twu);
 			sumTWU+=twu;
+			Float oldpro=fmap_pro.get(batch_number);
+			fmap_pro.put(batch_number, oldpro+pro);
+			sumPro+=pro;
 		}catch(Exception e)
 		{
-			System.out.println("Exception in addTWU fmap");
+			System.out.println("Exception in addTWUandPro fmap");
 		}
 	}
 }
