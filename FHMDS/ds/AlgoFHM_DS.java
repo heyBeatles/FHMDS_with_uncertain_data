@@ -32,6 +32,7 @@ import java.util.Set;
  */
 public class AlgoFHM_DS {
 
+
 	/**  the maximum memory usage */
 	public double maxMemory = 0; 
 	
@@ -59,7 +60,7 @@ public class AlgoFHM_DS {
 	static Map<Integer, Float> mapItemToTWU = new HashMap<Integer, Float>();
 
 	/** Map to store batch_wise TWU of items. */
-	static Map<Integer, Batch_wise_TWU> mapItemToUpdatedTWU = new HashMap<Integer, Batch_wise_TWU>();
+	static Map<Integer,Batch_wise_TWU_and_Pro> mapItemToUpdatedTWUandPro = new HashMap<Integer, Batch_wise_TWU_and_Pro>();
 
 	/** writer to write the output file */
 	BufferedWriter writer = null;
@@ -69,13 +70,14 @@ public class AlgoFHM_DS {
 	int processedBatchCount;
 
 	/** Map to store batch wise TWU of pairs (EUCS data structure in FHM) */
-	static Map<Integer, Map<Integer, FMAP_TWU>> mapFMAP = new HashMap<Integer, Map<Integer, FMAP_TWU>>();; // PAIR
+	static Map<Integer, Map<Integer, FMAP_TWU_and_Pro>> mapFMAP = new HashMap<Integer, Map<Integer, FMAP_TWU_and_Pro>>();; // PAIR
 	// END NEW OPTIMIZATION
 
 	/** Extra variables to store information for top-k computation */
 	public int k, win_size, number_of_transactions_batch, win_number;
-	static float min_top_k_utility_current_window = 0F;
+	//static float min_top_k_utility_current_window = 0F;
 	// static PriorityQueue<Float> PQ;
+
 	static ArrayList<ArrayList<String>> window = new ArrayList<ArrayList<String>>();
 
 	/**  CREATE A LIST TO STORE THE UTILITY LIST OF ITEMS WITH TWU >= MIN_UTILITY. */
@@ -120,8 +122,10 @@ public class AlgoFHM_DS {
 	 * @param transactionFileLoc
 	 * @throws IOException
 	 */
-	public void runAlgorithm(String transactionFile, int k, int win_size,
-			int number_of_transactions_batch, String resultFile)
+//	public void runAlgorithm(String transactionFile, int k, int win_size,
+//			int number_of_transactions_batch, String resultFile)
+	public void runAlgorithm(String transactionFile, int min_util,float min_Pro, int win_size,
+							 int number_of_transactions_batch, String resultFile)
 			throws IOException {
 
 		processedBatchCount = 0;
@@ -542,7 +546,7 @@ public class AlgoFHM_DS {
 	 */
 	void initial_call_FHM(ArrayList<ArrayList<String>> window,
 			int windowNumber, String resultFile) {
-		
+
 		top_k_hui.clear();
 
 		if (debug) {
@@ -563,11 +567,13 @@ public class AlgoFHM_DS {
 				String split[] = thisLine.split(":");
 				// get the list of items
 				String items[] = split[0].split(" ");
+				//get the pro of items
+				String pros[] = split[3].split(" ");
 				// the second part is the transaction utility
 				float transactionUtility = Integer.parseInt(split[1]);  
 				// get the list of utility values corresponding to each item
 				// for that transaction
-//				String utilityValues[] = split[2].split(" ");
+				//String utilityValues[] = split[2].split(" ");
 
 				// ======= END PHIL ====
 				
@@ -575,6 +581,7 @@ public class AlgoFHM_DS {
 				for(int i=0; i <items.length; i++){
 
 					Integer item = Integer.parseInt(items[i]);
+					float pro = Float.parseFloat(pros[i]);
 
 					Float twu = mapItemToTWU.get(item);
 					twu = (twu == null) ? transactionUtility : twu
@@ -582,14 +589,14 @@ public class AlgoFHM_DS {
 					mapItemToTWU.put(item, twu);
 
 					// Adding TWU to the item -> twu map
-					if (mapItemToUpdatedTWU.containsKey(item)) {
-						mapItemToUpdatedTWU.get(item).addTWU(transactionUtility,
+					if (mapItemToUpdatedTWUandPro.containsKey(item)) {
+						mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility,pro,
 								tid, this.win_size,
 								this.number_of_transactions_batch);
 					} else {
-						mapItemToUpdatedTWU.put(item, new Batch_wise_TWU(
+						mapItemToUpdatedTWUandPro.put(item, new Batch_wise_TWU_and_Pro(
 								this.win_size, this.win_number));
-						mapItemToUpdatedTWU.get(item).addTWU(transactionUtility,
+						mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility,pro,
 								tid, this.win_size,
 								this.number_of_transactions_batch);
 					}

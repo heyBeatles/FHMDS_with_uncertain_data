@@ -20,8 +20,11 @@ public class MainTestFHMDS {
 		
 		String input = ".//retail1.txt";
 		String output = ".//output.txt";
+
+		int min_utility = 30;
+		float min_Pro = (float) 0.1;
 		
-		int k =  5;
+		//int k =  5;
 		
 		// Win size is the number of batches in a window
 		int win_size = 2;
@@ -33,11 +36,13 @@ public class MainTestFHMDS {
 		AlgoFHM_DS algorithm = new AlgoFHM_DS();
 		algorithm.runAlgorithm(
 				input,
-				k,
+				//k,
+				min_utility,
+				min_Pro,
 				win_size, 
 				number_of_transactions_batch, output);
 		
-		algorithm.printStats();
+		algorithm.printStats();  
 
 	}
 
