@@ -31,6 +31,8 @@ import java.util.Set;
  * @author Siddharth Dawar et al.
  */
 public class AlgoFHM_DS {
+	int min_util;
+	float min_pro;
 
 
 	/**  the maximum memory usage */
@@ -132,6 +134,8 @@ public class AlgoFHM_DS {
 		this.k = k;
 		this.win_size = win_size;
 		this.number_of_transactions_batch = number_of_transactions_batch;
+		this.min_util=min_util;
+		this.min_pro=min_Pro;
 
 		startTimestamp = System.currentTimeMillis();
 
@@ -610,7 +614,7 @@ public class AlgoFHM_DS {
 		for (Integer item : mapItemToTWU.keySet()) {
 			// if the item is promising (TWU >= minutility)
 
-			if (mapItemToTWU.get(item) >= min_top_k_utility_current_window) {
+			if (mapItemToTWU.get(item) >= min_util) {
 				// create an empty Utility List that we will fill later.
 				UtilityList uList = new UtilityList(item, win_size,
 						windowNumber);
