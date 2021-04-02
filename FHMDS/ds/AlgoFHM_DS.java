@@ -22,1257 +22,1333 @@ import java.util.Set;
  * This is an implementation of the "FHM-DS" algorithm for High-Utility Itemsets
  * Mining in a stream as described in the conference paper : <br/>
  * <br/>
- * 
+ * <p>
  * Siddharth Dawar, Veronica Sharma, Vikram Goyal: Mining top-k high-utility itemsets
- *  from a data stream under sliding window model. Appl. Intell. 47(4): 1240-1255 (2017)
+ * from a data stream under sliding window model. Appl. Intell. 47(4): 1240-1255 (2017)
  *
+ * @author Siddharth Dawar et al.
  * @see UtilityList
  * @see Element
- * @author Siddharth Dawar et al.
  */
 public class AlgoFHM_DS {
-	int min_util;
-	float min_pro;
+    int min_util;
+    float min_pro;
+    int transactions_num;
+    /**
+     * variable for processDebug mode
+     */
+    boolean processDebug = true;
 
 
-	/**  the maximum memory usage */
-	public double maxMemory = 0; 
-	
-	/** the time the algorithm started */
-	public long startTimestamp = 0, startTimestamp2 = 0, endTimestamp2 = 0; 
-	
-	/** the time the algorithm terminated */
-	public long endTimestamp = 0, construct_time = 0, fhm_time = 0; 
-	
-	/** the number of HUI generated */
-	public int huiCount = 0; 
-	
+    /**
+     * the maximum memory usage
+     */
+    public double maxMemory = 0;
 
-	long total = 0;
-	
-	public long min_supp = 0, max_supp = 0, avg_supp = 0;
-	
-	public int candidateCount = 0, construct_calls = 0;
+    /**
+     * the time the algorithm started
+     */
+    public long startTimestamp = 0, startTimestamp2 = 0, endTimestamp2 = 0;
 
-	/** Map to remember the TWU of each item for first window only
-	// The ordering of items decided in the first window is fixed for rest
-	// of the windows also, unlike FHM_Naive where the ordering is
-	// different for each window as FHM sorts items in ascending
-	// order of TWU values. */
-	static Map<Integer, Float> mapItemToTWU = new HashMap<Integer, Float>();
+    /**
+     * the time the algorithm terminated
+     */
+    public long endTimestamp = 0, construct_time = 0, fhm_time = 0;
 
-	/** Map to store batch_wise TWU of items. */
-	static Map<Integer,Batch_wise_TWU_and_Pro> mapItemToUpdatedTWUandPro = new HashMap<Integer, Batch_wise_TWU_and_Pro>();
+    /**
+     * the number of HUI generated
+     */
+    public int huiCount = 0;
 
-	/** writer to write the output file */
-	BufferedWriter writer = null;
-	BufferedWriter tempwriter = null;
-	
-	/** number of batches that have been processed */
-	int processedBatchCount;
 
-	/** Map to store batch wise TWU of pairs (EUCS data structure in FHM) */
-	static Map<Integer, Map<Integer, FMAP_TWU_and_Pro>> mapFMAP = new HashMap<Integer, Map<Integer, FMAP_TWU_and_Pro>>();; // PAIR
-	// END NEW OPTIMIZATION
+    long total = 0;
 
-	/** Extra variables to store information for top-k computation */
-	public int k, win_size, number_of_transactions_batch, win_number;
-	//static float min_top_k_utility_current_window = 0F;
-	// static PriorityQueue<Float> PQ;
+    public long min_supp = 0, max_supp = 0, avg_supp = 0;
 
-	static ArrayList<ArrayList<String>> window = new ArrayList<ArrayList<String>>();
+    public int candidateCount = 0, construct_calls = 0;
 
-	/**  CREATE A LIST TO STORE THE UTILITY LIST OF ITEMS WITH TWU >= MIN_UTILITY. */
-	static List<UtilityList> listOfUtilityLists = new ArrayList<UtilityList>();
-	
-	/** A MAP TO STORE THE UTILITY LIST FOR EACH ITEM.
-	// Key : item Value : utility list associated to that item */
-	static Map<Integer, UtilityList> mapItemToUtilityList = new HashMap<Integer, UtilityList>();
+    /**
+     * Map to remember the TWU of each item for first window only
+     * // The ordering of items decided in the first window is fixed for rest
+     * // of the windows also, unlike FHM_Naive where the ordering is
+     * // different for each window as FHM sorts items in ascending
+     * // order of TWU values.
+     */
+    static Map<Integer, Float> mapItemToTWU = new HashMap<Integer, Float>();
 
-	/** Structure to store the top k HUIs */
-	static private List<Itemset> top_k_hui = new ArrayList<Itemset>();
+    /**
+     * Map to store batch_wise TWU of items.
+     */
+    static Map<Integer, Batch_wise_TWU_and_Pro> mapItemToUpdatedTWUandPro = new HashMap<Integer, Batch_wise_TWU_and_Pro>();
 
-	/** variable for debug mode */
-	boolean debug = false;
+    /**
+     * writer to write the output file
+     */
+    BufferedWriter writer = null;
+    BufferedWriter tempwriter = null;
 
-	/** this class represent an item and its utility in a transaction */
-	class Pair {
-		int item = 0;
-		float utility = 0;
+    /**
+     * number of batches that have been processed
+     */
+    int processedBatchCount;
 
-		public String toString() {
-			return "[" + item + "," + utility + "]";
-		}
-	}
+    /**
+     * Map to store batch wise TWU of pairs (EUCS data structure in FHM)
+     */
+    static Map<Integer, Map<Integer, FMAP_TWU_and_Pro>> mapFMAP = new HashMap<Integer, Map<Integer, FMAP_TWU_and_Pro>>();
+    ; // PAIR
+    // END NEW OPTIMIZATION
 
-	/**
-	 * Default constructor
-	 */
-	public AlgoFHM_DS() {
+    /**
+     * Extra variables to store information for top-k computation
+     */
+    public int k, win_size, number_of_transactions_batch, win_number;
+    //static float min_top_k_utility_current_window = 0F;
+    // static PriorityQueue<Float> PQ;
 
-	}
+    static ArrayList<ArrayList<String>> window = new ArrayList<ArrayList<String>>();
 
-	/***
-	 * 
-	 * @param transactionFile
-	 * @param k
-	 * @param win_size
-	 *            the number of batches in a window
-	 * @param number_of_transactions_batch
-	 *            - number of transactions in a batch
-	 * @param resultFile
-	 * @param transactionFileLoc
-	 * @throws IOException
-	 */
+    /**
+     * CREATE A LIST TO STORE THE UTILITY LIST OF ITEMS WITH TWU >= MIN_UTILITY.
+     */
+    static List<UtilityList> listOfUtilityLists = new ArrayList<UtilityList>();
+
+    /**
+     * A MAP TO STORE THE UTILITY LIST FOR EACH ITEM.
+     * // Key : item Value : utility list associated to that item
+     */
+    static Map<Integer, UtilityList> mapItemToUtilityList = new HashMap<Integer, UtilityList>();
+
+    /**
+     * Structure to store the top k HUIs
+     */
+    static private List<Itemset> top_k_hui = new ArrayList<Itemset>();
+
+    /**
+     * variable for debug mode
+     */
+    boolean debug = false;
+
+    /**
+     * this class represent an item and its utility in a transaction
+     */
+    class Pair {
+        int item = 0;
+        float utility = 0;
+        float pro = 0;
+
+        public String toString() {
+            return "[" + item + "," + utility + "," + pro + "]";
+        }
+    }
+
+    /**
+     * Default constructor
+     */
+    public AlgoFHM_DS() {
+
+    }
+
+    /***
+     *
+     * @param transactionFile
+     * @param k
+     * @param win_size
+     *            the number of batches in a window
+     * @param number_of_transactions_batch
+     *            - number of transactions in a batch
+     * @param resultFile
+     * @param transactionFileLoc
+     * @throws IOException
+     */
 //	public void runAlgorithm(String transactionFile, int k, int win_size,
 //			int number_of_transactions_batch, String resultFile)
-	public void runAlgorithm(String transactionFile, int min_util,float min_Pro, int win_size,
-							 int number_of_transactions_batch, String resultFile)
-			throws IOException {
+    public void runAlgorithm(String transactionFile, int min_util, float min_Pro, int win_size,
+                             int number_of_transactions_batch, String resultFile)
+            throws IOException {
 
-		processedBatchCount = 0;
-		this.k = k;
-		this.win_size = win_size;
-		this.number_of_transactions_batch = number_of_transactions_batch;
-		this.min_util=min_util;
-		this.min_pro=min_Pro;
+        processedBatchCount = 0;
+        this.k = k;
+        this.win_size = win_size;
+        this.number_of_transactions_batch = number_of_transactions_batch;
+        this.min_util = min_util;
+        this.min_pro = min_Pro;
+        this.transactions_num = number_of_transactions_batch * win_size;
+        if (processDebug) {
+            System.out.println("min_util: " + min_util + " ,min_pro:" + min_pro + " transactions_num:" + transactions_num);
+        }
 
-		startTimestamp = System.currentTimeMillis();
+        startTimestamp = System.currentTimeMillis();
 
-		// Scan the complete database to create windows and call FHM.
-		BufferedReader myInput = null;
-		String thisLine;
-		int iterateBatch = 0, iterateWindow = 0, windowCount = 0, batchNumber = 0;
-		ArrayList<String> batchTransaction = new ArrayList<String>();
+        // Scan the complete database to create windows and call FHM.
+        BufferedReader myInput = null;
+        String thisLine;
+        int iterateBatch = 0, iterateWindow = 0, windowCount = 0, batchNumber = 0;
+        ArrayList<String> batchTransaction = new ArrayList<String>();
 
-		try {
-			// prepare the object for reading the file
-			myInput = new BufferedReader(new InputStreamReader(
-					new FileInputStream(new File(transactionFile))));
-			// readUtilityFile(utilityFile);
-			// int counter=0;
-			int flag = 1;
-			// for each line (transaction) until the end of file
-			while ((thisLine = myInput.readLine()) != null) {
-				// if the line is a comment, is empty or is a
-				// kind of metadata
-				if (thisLine.isEmpty() == true || thisLine.charAt(0) == '#'
-						|| thisLine.charAt(0) == '%'
-						|| thisLine.charAt(0) == '@') {
-					continue;
-				}
+        try {
+            // prepare the object for reading the file
+            myInput = new BufferedReader(new InputStreamReader(
+                    new FileInputStream(new File(transactionFile))));
+            // readUtilityFile(utilityFile);
+            // int counter=0;
+            int flag = 1;
+            // for each line (transaction) until the end of file
+            while ((thisLine = myInput.readLine()) != null) {
+                // if the line is a comment, is empty or is a
+                // kind of metadata
+                if (thisLine.isEmpty() == true || thisLine.charAt(0) == '#'
+                        || thisLine.charAt(0) == '%'
+                        || thisLine.charAt(0) == '@') {
+                    continue;
+                }
 
-				if (flag == 1) {
-					iterateBatch++;
-					if (iterateBatch <= this.number_of_transactions_batch) {
-						batchTransaction.add(thisLine);
-					}
+                if (flag == 1) {
+                    iterateBatch++;
+                    if (iterateBatch <= this.number_of_transactions_batch) {
+                        batchTransaction.add(thisLine);
+                    }
 
-					if ((iterateBatch == this.number_of_transactions_batch)) {
-						iterateBatch = 0;
-						batchNumber++;
-						window.add(new ArrayList<String>(batchTransaction));
-						batchTransaction.clear();
-						iterateWindow++;
+                    if ((iterateBatch == this.number_of_transactions_batch)) {
+                        iterateBatch = 0;
+                        batchNumber++;
+                        window.add(new ArrayList<String>(batchTransaction));
+                        batchTransaction.clear();
+                        iterateWindow++;
 
-						// if iterateWindow equals to window size
-						if (iterateWindow >= this.win_size) {
-							windowCount++;
-							// invoke FHM on this Window
+                        // if iterateWindow equals to window size
+                        if (iterateWindow >= this.win_size) {
+                            windowCount++;
+                            // invoke FHM on this Window
 
-							initial_call_FHM(window, windowCount, resultFile);
-							writeResultTofile(resultFile, false);
-							window.remove(0);
-							flag = 0;
-						}
-					}
-				}
+                            initial_call_FHM(window, windowCount, resultFile);
+                            //writeResultTofile(resultFile, false);
+                            window.remove(0);
+                            flag = 0;
+                        }
+                    }
+                } else {
+                    iterateBatch++;
+                    if (iterateBatch <= this.number_of_transactions_batch) {
+                        batchTransaction.add(thisLine + "\n");
+                    }
 
-				else {
-					iterateBatch++;
-					if (iterateBatch <= this.number_of_transactions_batch) {
-						batchTransaction.add(thisLine + "\n");
-					}
+                    if ((iterateBatch == this.number_of_transactions_batch)) {
+                        iterateBatch = 0;
+                        windowCount++;
+                        this.win_number++;
+                        batchNumber++;
+                        update_FHM(batchTransaction, batchNumber, resultFile);
+                        // ADDED BY PHIL:
+                        //writeResultTofile(resultFile, true);
 
-					if ((iterateBatch == this.number_of_transactions_batch)) {
-						iterateBatch = 0;
-						windowCount++;
-						this.win_number++;
-						batchNumber++;
-						update_FHM(batchTransaction, batchNumber, resultFile);
-						// ADDED BY PHIL:
-						writeResultTofile(resultFile, true);
-						
-						batchTransaction.clear();
-					}
-				}
-			}
+                        batchTransaction.clear();
+                    }
+                }
+            }
 
-			// if it is last batch with elements less than user specified batch
-			// elements
-			if ((iterateBatch > 0)
-					&& (iterateBatch < this.number_of_transactions_batch)) {
-				windowCount++;
-				batchNumber++;
-				this.win_number++;
-				update_FHM(batchTransaction, batchNumber, resultFile);
+            // if it is last batch with elements less than user specified batch
+            // elements
+            if ((iterateBatch > 0)
+                    && (iterateBatch < this.number_of_transactions_batch)) {
+                windowCount++;
+                batchNumber++;
+                this.win_number++;
+                update_FHM(batchTransaction, batchNumber, resultFile);
 
-				// ADDED BY PHIL:
-				writeResultTofile(resultFile, true);
-				
-				batchTransaction.clear();
-			}
-		} catch (Exception e) {
-			// catches exception if error while reading the input file
-			e.printStackTrace();
-		} finally {
-			if (myInput != null) {
-				myInput.close();
-			}
-			batchTransaction.clear();
-			window.clear();
-			thisLine = "";
-		}
-		endTimestamp = System.currentTimeMillis();
-		// this.printStats(resultFile, transactionFileLoc);
-	}
+                // ADDED BY PHIL:
+                writeResultTofile(resultFile, true);
 
-	void remove_batch_utility_list(int batch_number) {
-		Set<Integer> keyset = mapItemToUtilityList.keySet();
+                batchTransaction.clear();
+            }
+        } catch (Exception e) {
+            // catches exception if error while reading the input file
+            e.printStackTrace();
+        } finally {
+            if (myInput != null) {
+                myInput.close();
+            }
+            batchTransaction.clear();
+            window.clear();
+            thisLine = "";
+        }
+        endTimestamp = System.currentTimeMillis();
+        // this.printStats(resultFile, transactionFileLoc);
+    }
 
-		for (int key : keyset) {
-			// remove information of previous batch from utility list of item
-			UtilityList uList = mapItemToUtilityList.get(key);
+    void remove_batch_utility_list(int batch_number) {
+        Set<Integer> keyset = mapItemToUtilityList.keySet();
 
-			int first_batch = Collections.min(uList.batches.keySet());
-			uList.sumIutils = uList.sumIutils
-					- uList.batches.get(first_batch).sum_batch_iutils;
-			uList.sumRutils = uList.sumRutils
-					- uList.batches.get(first_batch).sum_batch_rutils;
-			uList.batches.get(first_batch).elements.clear();
-			uList.batches.remove(first_batch);
+        for (int key : keyset) {
+            // remove information of previous batch from utility list of item
+            UtilityList uList = mapItemToUtilityList.get(key);
 
-			// add new batch to utility list
-			Batch b = new Batch(batch_number, 0, 0);
-			uList.batches.put(batch_number, b);
+            int first_batch = Collections.min(uList.batches.keySet());
+            uList.sumIutils = uList.sumIutils
+                    - uList.batches.get(first_batch).sum_batch_iutils;
+            uList.sumRutils = uList.sumRutils
+                    - uList.batches.get(first_batch).sum_batch_rutils;
+			uList.sumPro = uList.sumPro - uList.batches.get(first_batch).sum_batch_pro;
+            uList.batches.get(first_batch).elements.clear();
+            uList.batches.remove(first_batch);
 
-			mapItemToUtilityList.put(key, uList);
-			listOfUtilityLists.add(uList);
+            // add new batch to utility list
+			Batch b = new Batch(batch_number, 0, 0, 0);
+            uList.batches.put(batch_number, b);
 
-		}
-	}
+            mapItemToUtilityList.put(key, uList);
+            listOfUtilityLists.add(uList);
 
-	void update_FHM(ArrayList<String> batchTransaction, int batch_number,
-			String resultFile) {
-		
-		top_k_hui.clear();
-		
-		// remove information of previous batch from utility lists
-		this.startTimestamp2 = System.currentTimeMillis();
-		listOfUtilityLists.clear();
-		// this.mapFMAP.clear();
+        }
+    }
 
-		if (debug) {
-			System.out.println("Computation on Window: " + this.win_number);
-		}
-		remove_batch_utility_list(batch_number);
-		for (int key : mapItemToUpdatedTWU.keySet()) {
-			mapItemToUpdatedTWU.get(key).updateTWU(this.win_size,
-					win_number);
-		}
+    void update_FHM(ArrayList<String> batchTransaction, int batch_number,
+                    String resultFile) {
 
-		for (int item : mapFMAP.keySet()) {
-			for (int pair_item : mapFMAP.get(item).keySet()) {
-				FMAP_TWU map = mapFMAP.get(item).get(pair_item);
-				map.updateTWU(this.win_size, this.win_number, batch_number);
-			}
+        top_k_hui.clear();
 
-		}
+        // remove information of previous batch from utility lists
+        this.startTimestamp2 = System.currentTimeMillis();
+        listOfUtilityLists.clear();
+        // this.mapFMAP.clear();
 
-		// Add information of new batch to Utility Lists
-		// New item which never appeared before in database
-		// Also, we need to maintain TWU of this new batch for all items
-		for (String thisLine : batchTransaction) {
-			
-			// ======= PHIL ====
-			// split the line according to the separator
-			String split[] = thisLine.split(":");
-			// get the list of items
-			String items[] = split[0].split(" ");
-			// the second part is the transaction utility
-			int transactionUtility = Integer.parseInt(split[1]);  
+        if (debug) {
+            System.out.println("Computation on Window: " + this.win_number);
+        }
+        remove_batch_utility_list(batch_number);
+        for (int key : mapItemToUpdatedTWUandPro.keySet()) {
+            mapItemToUpdatedTWUandPro.get(key).updateTWUandPro(this.win_size,
+                    win_number);
+        }
 
-			// ======= END PHIL ====
-			
-				
-			for(int i=0; i <items.length; i++){
-				/// convert values to integers
-				Integer item = Integer.parseInt(items[i]);
+        for (int item : mapFMAP.keySet()) {
+            for (int pair_item : mapFMAP.get(item).keySet()) {
+                FMAP_TWU_and_Pro map = mapFMAP.get(item).get(pair_item);
+                map.updateTWUandPro(this.win_size, this.win_number, batch_number);
+            }
 
-				if (mapItemToUpdatedTWU.containsKey(item)) {
-					mapItemToUpdatedTWU.get(item).addTWU(batch_number,
-							transactionUtility);
-				} else {
-					mapItemToUpdatedTWU.put(item, new Batch_wise_TWU(
-							this.win_size, this.win_number));
-					mapItemToUpdatedTWU.get(item).addTWU(batch_number,
-							transactionUtility);
-				}
-			}
+        }
 
-		}
+        // Add information of new batch to Utility Lists
+        // New item which never appeared before in database
+        // Also, we need to maintain TWU of this new batch for all items
+        for (String thisLine : batchTransaction) {
 
-		// System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-		// SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
-		Collections.sort(listOfUtilityLists, new Comparator<UtilityList>() {
-			public int compare(UtilityList o1, UtilityList o2) {
-				// compare the TWU of the items
-				return compareItems(o1.item, o2.item);
-			}
-		});
+            // ======= PHIL ====
+            // split the line according to the separator
+            String split[] = thisLine.split(":");
+            // get the list of items
+            String items[] = split[0].split(" ");
+            // the second part is the transaction utility
+            int transactionUtility = Integer.parseInt(split[1]);
+            //get the probabilities
+			String probalities[] = split[3].split(" ");
 
-		// need to check
-		// int
-		// tid=(this.win_number-1)*this.number_of_transactions_batch*this.win_size;
-		int tid = (batch_number - 1) * this.number_of_transactions_batch;
-		for (String thisLine : batchTransaction) {
-			tid++;
-			float remainingUtility = 0;
-			float newTWU = 0;
-			
-			
-			
-			// ======= PHIL ====
-			// split the line according to the separator
-			String split[] = thisLine.split(":");
-			// get the list of items
-			String items[] = split[0].split(" ");
-			String utilityValues[] = split[2].split(" ");
-			// ======= END PHIL ====
-				
-				
-			List<Pair> revisedTransaction = new ArrayList<Pair>();
-			// for each item
-			for(int i=0; i <items.length; i++){
-				/// convert values to integers
-				Pair pair = new Pair();
-				pair.item = Integer.parseInt(items[i]);
-				pair.utility = Float.parseFloat(utilityValues[i]);
+            // ======= END PHIL ====
 
-				// if the item has enough utility
-				if (mapItemToUpdatedTWU.get(pair.item).sumTWU >= min_top_k_utility_current_window) {
-					// add it
-					revisedTransaction.add(pair);
-					remainingUtility += pair.utility;
-					newTWU += pair.utility; // NEW OPTIMIZATION
-				}
 
-			}
+            for (int i = 0; i < items.length; i++) {
+                /// convert values to integers
+                Integer item = Integer.parseInt(items[i]);
+                float pro = Float.parseFloat(probalities[i]);
 
-			// sort the transaction
-			System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-			Collections.sort(revisedTransaction, new Comparator<Pair>() {
-				public int compare(Pair o1, Pair o2) {
-					return compareItems(o1.item, o2.item);
-				}
-			});
-			System.setProperty("java.util.Arrays.useLegacyMergeSort", "false");
-			
-			// for each item left in the transaction
-			for (int i = 0; i < revisedTransaction.size(); i++) {
-				Pair pair = revisedTransaction.get(i);
+                if (mapItemToUpdatedTWUandPro.containsKey(item)) {
+                    mapItemToUpdatedTWUandPro.get(item).addTWUandPro(batch_number,
+                            transactionUtility,pro);
+                } else {
+                    mapItemToUpdatedTWUandPro.put(item, new Batch_wise_TWU_and_Pro(
+                            this.win_size, this.win_number));
+                    mapItemToUpdatedTWUandPro.get(item).addTWUandPro(batch_number,
+                            transactionUtility,pro);
+                }
+            }
 
-				// subtract the utility of this item from the remaining utility
-				remainingUtility = remainingUtility - pair.utility;
+        }
 
-				// get the utility list of this item
-				if (mapItemToUtilityList.get(pair.item) == null) {
-					UtilityList uList = new UtilityList(pair.item, win_size,
-							this.win_number);
-					listOfUtilityLists.add(uList);
-					mapItemToUtilityList.put(pair.item, uList);
+        // System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+        // SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
+        Collections.sort(listOfUtilityLists, new Comparator<UtilityList>() {
+            public int compare(UtilityList o1, UtilityList o2) {
+                // compare the TWU of the items
+                return compareItems(o1.item, o2.item);
+            }
+        });
 
-					// System.setProperty("java.util.Arrays.useLegacyMergeSort",
-					// "true");
-					// SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
-					Collections.sort(listOfUtilityLists,
-							new Comparator<UtilityList>() {
-								public int compare(UtilityList o1,
-										UtilityList o2) {
-									// compare the TWU of the items
-									return compareItems(o1.item, o2.item);
-								}
-							});
+        // need to check
+        // int
+        // tid=(this.win_number-1)*this.number_of_transactions_batch*this.win_size;
+        int tid = (batch_number - 1) * this.number_of_transactions_batch;
+        for (String thisLine : batchTransaction) {
+            tid++;
+            float remainingUtility = 0;
+            float newTWU = 0;
 
-				}
-				UtilityList utilityListOfItem = mapItemToUtilityList
-						.get(pair.item);
 
-				// Add a new Element to the utility list of this item
-				// corresponding to this transaction
-				Element element = new Element(tid, pair.utility,
-						remainingUtility);
+            // ======= PHIL ====
+            // split the line according to the separator
+            String split[] = thisLine.split(":");
+            // get the list of items
+            String items[] = split[0].split(" ");
+            String utilityValues[] = split[2].split(" ");
+            String probabilities[] = split[3].split(" ");
+            // ======= END PHIL ====
 
-				utilityListOfItem.addElement(element, win_size,
-						number_of_transactions_batch);
 
-				// BEGIN NEW OPTIMIZATION for FHM
-				Map<Integer, FMAP_TWU> mapFMAPItem = mapFMAP.get(pair.item);
-				if (mapFMAPItem == null) {
-					mapFMAPItem = new HashMap<Integer, FMAP_TWU>();
-					mapFMAP.put(pair.item, mapFMAPItem);
-					// FMAP_TWU map= new
-					// FMAP_TWU(this.win_size,this.win_number);
-					// map.addTWU(newTWU, tid, this.win_size,
-					// this.number_of_transactions_batch);
-					// mapFMAPItem.put(pair.item,map);
-				}
-				for (int j = i + 1; j < revisedTransaction.size(); j++) {
-					Pair pairAfter = revisedTransaction.get(j);
-					FMAP_TWU map = mapFMAPItem.get(pairAfter.item);
-					if (map == null) {
-						map = new FMAP_TWU(this.win_size, this.win_number);
-						map.addTWU(batch_number, newTWU);
-						mapFMAPItem.put(pairAfter.item, map);
-					} else {
-						map.addTWU(batch_number, newTWU);
-						mapFMAPItem.put(pairAfter.item, map);
-					}
-					mapFMAP.put(pair.item, mapFMAPItem);
-				}
-				// END OPTIMIZATION of FHM
-			}
+            List<Pair> revisedTransaction = new ArrayList<Pair>();
+            // for each item
+            for (int i = 0; i < items.length; i++) {
+                /// convert values to integers
+                Pair pair = new Pair();
+                pair.item = Integer.parseInt(items[i]);
+                pair.utility = Float.parseFloat(utilityValues[i]);
 
-		}
+                // if the item has enough utility
+                if (mapItemToUpdatedTWU.get(pair.item).sumTWU >= min_top_k_utility_current_window) {
+                    // add it
+                    revisedTransaction.add(pair);
+                    remainingUtility += pair.utility;
+                    newTWU += pair.utility; // NEW OPTIMIZATION
+                }
 
-		// Initialise top-k buffer and PQ for the new window
+            }
 
-		top_k_hui.clear();// PQ.clear();
+            // sort the transaction
+            System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+            Collections.sort(revisedTransaction, new Comparator<Pair>() {
+                public int compare(Pair o1, Pair o2) {
+                    return compareItems(o1.item, o2.item);
+                }
+            });
+            System.setProperty("java.util.Arrays.useLegacyMergeSort", "false");
 
-		// Add exact utility of single items to top-k buffer
-		for (UtilityList temp : listOfUtilityLists) {
-			int[] itemset = new int[1];
-			itemset[0] = temp.item;
-			Itemset i = new Itemset(itemset, temp.sumIutils);
-			if (temp.batches.containsKey(this.win_number))
-				i.last_batch_utility = temp.sumIutils
-						- temp.batches.get(Collections.min(temp.batches
-								.keySet())).sum_batch_iutils;
-			else
-				i.last_batch_utility = temp.sumIutils;
+            // for each item left in the transaction
+            for (int i = 0; i < revisedTransaction.size(); i++) {
+                Pair pair = revisedTransaction.get(i);
 
-			top_k_hui.add(i);
+                // subtract the utility of this item from the remaining utility
+                remainingUtility = remainingUtility - pair.utility;
 
-			// if(top_k_hui.size()<=k)
-			// PQ.add(temp.sumIutils -
-			// temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
-			// );
+                // get the utility list of this item
+                if (mapItemToUtilityList.get(pair.item) == null) {
+                    UtilityList uList = new UtilityList(pair.item, win_size,
+                            this.win_number);
+                    listOfUtilityLists.add(uList);
+                    mapItemToUtilityList.put(pair.item, uList);
 
-			// sort tophui list in descending utility order
-			System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-			Collections.sort(top_k_hui, new Comparator<Itemset>() {
-				public int compare(Itemset o1, Itemset o2) {
-					return (int) (o2.getExactUtility() - o1.getExactUtility());
-				}
-			});
-			if (top_k_hui.size() > k) {
-				int lastindex = top_k_hui.size() - 1;
+                    // System.setProperty("java.util.Arrays.useLegacyMergeSort",
+                    // "true");
+                    // SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
+                    Collections.sort(listOfUtilityLists,
+                            new Comparator<UtilityList>() {
+                                public int compare(UtilityList o1,
+                                                   UtilityList o2) {
+                                    // compare the TWU of the items
+                                    return compareItems(o1.item, o2.item);
+                                }
+                            });
 
-				Itemset set = top_k_hui.get(lastindex);
-				top_k_hui.remove(lastindex);
-				// PQ.remove();
-				// PQ.add(temp.sumIutils -
-				// temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
-				// );
-				if (set.getExactUtility() > min_top_k_utility_current_window) {
-					min_top_k_utility_current_window = set.getExactUtility();
-				}
-			}
-		}
-		if (top_k_hui.size() >= k)
-			min_top_k_utility_current_window = top_k_hui.get(
-					top_k_hui.size() - 1).getExactUtility();
+                }
+                UtilityList utilityListOfItem = mapItemToUtilityList
+                        .get(pair.item);
 
-		// min_top_k_utility_current_window=top_k_hui.get(top_k_hui.size()-1).getExactUtility();
-		long temp = System.currentTimeMillis();
-		try {
-			fhmUpdateCall(new int[0], null, listOfUtilityLists);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		fhm_time = System.currentTimeMillis() - temp;
+                // Add a new Element to the utility list of this item
+                // corresponding to this transaction
+                Element element = new Element(tid, pair.utility,
+                        remainingUtility);
+
+                utilityListOfItem.addElement(element, win_size,
+                        number_of_transactions_batch);
+
+                // BEGIN NEW OPTIMIZATION for FHM
+                Map<Integer, FMAP_TWU> mapFMAPItem = mapFMAP.get(pair.item);
+                if (mapFMAPItem == null) {
+                    mapFMAPItem = new HashMap<Integer, FMAP_TWU>();
+                    mapFMAP.put(pair.item, mapFMAPItem);
+                    // FMAP_TWU map= new
+                    // FMAP_TWU(this.win_size,this.win_number);
+                    // map.addTWU(newTWU, tid, this.win_size,
+                    // this.number_of_transactions_batch);
+                    // mapFMAPItem.put(pair.item,map);
+                }
+                for (int j = i + 1; j < revisedTransaction.size(); j++) {
+                    Pair pairAfter = revisedTransaction.get(j);
+                    FMAP_TWU map = mapFMAPItem.get(pairAfter.item);
+                    if (map == null) {
+                        map = new FMAP_TWU(this.win_size, this.win_number);
+                        map.addTWU(batch_number, newTWU);
+                        mapFMAPItem.put(pairAfter.item, map);
+                    } else {
+                        map.addTWU(batch_number, newTWU);
+                        mapFMAPItem.put(pairAfter.item, map);
+                    }
+                    mapFMAP.put(pair.item, mapFMAPItem);
+                }
+                // END OPTIMIZATION of FHM
+            }
+
+        }
+
+        // Initialise top-k buffer and PQ for the new window
+
+        top_k_hui.clear();// PQ.clear();
+
+        // Add exact utility of single items to top-k buffer
+        for (UtilityList temp : listOfUtilityLists) {
+            int[] itemset = new int[1];
+            itemset[0] = temp.item;
+            Itemset i = new Itemset(itemset, temp.sumIutils);
+            if (temp.batches.containsKey(this.win_number))
+                i.last_batch_utility = temp.sumIutils
+                        - temp.batches.get(Collections.min(temp.batches
+                        .keySet())).sum_batch_iutils;
+            else
+                i.last_batch_utility = temp.sumIutils;
+
+            top_k_hui.add(i);
+
+            // if(top_k_hui.size()<=k)
+            // PQ.add(temp.sumIutils -
+            // temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
+            // );
+
+            // sort tophui list in descending utility order
+            System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+            Collections.sort(top_k_hui, new Comparator<Itemset>() {
+                public int compare(Itemset o1, Itemset o2) {
+                    return (int) (o2.getExactUtility() - o1.getExactUtility());
+                }
+            });
+            if (top_k_hui.size() > k) {
+                int lastindex = top_k_hui.size() - 1;
+
+                Itemset set = top_k_hui.get(lastindex);
+                top_k_hui.remove(lastindex);
+                // PQ.remove();
+                // PQ.add(temp.sumIutils -
+                // temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
+                // );
+                if (set.getExactUtility() > min_top_k_utility_current_window) {
+                    min_top_k_utility_current_window = set.getExactUtility();
+                }
+            }
+        }
+        if (top_k_hui.size() >= k)
+            min_top_k_utility_current_window = top_k_hui.get(
+                    top_k_hui.size() - 1).getExactUtility();
+
+        // min_top_k_utility_current_window=top_k_hui.get(top_k_hui.size()-1).getExactUtility();
+        long temp = System.currentTimeMillis();
+        try {
+            fhmUpdateCall(new int[0], null, listOfUtilityLists);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        fhm_time = System.currentTimeMillis() - temp;
 //		float curr_top_k_util = this.min_top_k_utility_current_window;
 
-		if (debug) {
-			System.out.println("Top k utility: "
-					+ top_k_hui.get(top_k_hui.size() - 1).getExactUtility());
-		}
+        if (debug) {
+            System.out.println("Top k utility: "
+                    + top_k_hui.get(top_k_hui.size() - 1).getExactUtility());
+        }
 
-		System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-		Collections.sort(top_k_hui, new Comparator<Itemset>() {
-			public int compare(Itemset o1, Itemset o2) {
-				return (int) ((o2.last_batch_utility - o1.last_batch_utility));
-			}
-		});
-		System.setProperty("java.util.Arrays.useLegacyMergeSort", "false");
+        System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+        Collections.sort(top_k_hui, new Comparator<Itemset>() {
+            public int compare(Itemset o1, Itemset o2) {
+                return (int) ((o2.last_batch_utility - o1.last_batch_utility));
+            }
+        });
+        System.setProperty("java.util.Arrays.useLegacyMergeSort", "false");
 
-		if (top_k_hui.size() >= k)
-			min_top_k_utility_current_window = top_k_hui.get(top_k_hui
-					.size() - 1).last_batch_utility;
-		else
-			min_top_k_utility_current_window = 0;
+        if (top_k_hui.size() >= k)
+            min_top_k_utility_current_window = top_k_hui.get(top_k_hui
+                    .size() - 1).last_batch_utility;
+        else
+            min_top_k_utility_current_window = 0;
 //		top_k_hui.clear();
-		endTimestamp2 = System.currentTimeMillis();
-		// try {
-		// printStats(resultFile, transactionFileLoc,curr_top_k_util);
-		//
-		// } catch (IOException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// }
-		// System.out.println("Top k HUI utility:"+this.min_top_k_utility_current_window);
-		// System.out.println("Top k HUI utility PQ:"+PQ.peek()+" "+PQ.size()+" "+PQ.toString());
-		// this.min_top_k_utility_current_window=PQ.peek();
-		// PQ.clear();
-		// endTimestamp = System.currentTimeMillis();
+        endTimestamp2 = System.currentTimeMillis();
+        // try {
+        // printStats(resultFile, transactionFileLoc,curr_top_k_util);
+        //
+        // } catch (IOException e) {
+        // // TODO Auto-generated catch block
+        // e.printStackTrace();
+        // }
+        // System.out.println("Top k HUI utility:"+this.min_top_k_utility_current_window);
+        // System.out.println("Top k HUI utility PQ:"+PQ.peek()+" "+PQ.size()+" "+PQ.toString());
+        // this.min_top_k_utility_current_window=PQ.peek();
+        // PQ.clear();
+        // endTimestamp = System.currentTimeMillis();
 
-	}
+    }
 
-	/**
-	 * This method implements FHM algorithm on the first window only.
-	 * UpdateFHM() will be called for subsequent windows.
-	 * 
-	 * @param window
-	 * @param windowNumber
-	 * @param resultFile
-	 * @param transactionFileLoc
-	 */
-	void initial_call_FHM(ArrayList<ArrayList<String>> window,
-			int windowNumber, String resultFile) {
+    /**
+     * This method implements FHM algorithm on the first window only.
+     * UpdateFHM() will be called for subsequent windows.
+     *
+     * @param window
+     * @param windowNumber
+     * @param resultFile
+     * @param transactionFileLoc
+     */
+    void initial_call_FHM(ArrayList<ArrayList<String>> window,
+                          int windowNumber, String resultFile) {
 
-		top_k_hui.clear();
+        top_k_hui.clear();
 
-		if (debug) {
-			System.out.println("Computation on Window: " + windowNumber);
-		}
-		
-		startTimestamp2 = System.currentTimeMillis();
-		win_number = windowNumber;
+        if (debug) {
+            System.out.println("Computation on Window: " + windowNumber);
+        }
 
-		int tid = (windowNumber - 1) * this.number_of_transactions_batch;
-		// We scan the database first time to calculate the TWU of each item.
-		for (ArrayList<String> batch_transactions : window) {
-			for (String thisLine : batch_transactions) {
-				tid++;
-				
-				// ======= PHIL ====
-				// split the line according to the separator
-				String split[] = thisLine.split(":");
-				// get the list of items
-				String items[] = split[0].split(" ");
-				//get the pro of items
-				String pros[] = split[3].split(" ");
-				// the second part is the transaction utility
-				float transactionUtility = Integer.parseInt(split[1]);  
-				// get the list of utility values corresponding to each item
-				// for that transaction
-				//String utilityValues[] = split[2].split(" ");
+        startTimestamp2 = System.currentTimeMillis();
+        win_number = windowNumber;
 
-				// ======= END PHIL ====
-				
-				// for each item
-				for(int i=0; i <items.length; i++){
+        int tid = (windowNumber - 1) * this.number_of_transactions_batch;
+        // We scan the database first time to calculate the TWU of each item.
+        for (ArrayList<String> batch_transactions : window) {
+            for (String thisLine : batch_transactions) {
+                tid++;
 
-					Integer item = Integer.parseInt(items[i]);
-					float pro = Float.parseFloat(pros[i]);
+                // ======= PHIL ====
+                // split the line according to the separator
+                String split[] = thisLine.split(":");
+                // get the list of items
+                String items[] = split[0].split(" ");
+                //get the pro of items
+                String pros[] = split[3].split(" ");
+                // the second part is the transaction utility
+                float transactionUtility = Integer.parseInt(split[1]);
+                // get the list of utility values corresponding to each item
+                // for that transaction
+                //String utilityValues[] = split[2].split(" ");
 
-					Float twu = mapItemToTWU.get(item);
-					twu = (twu == null) ? transactionUtility : twu
-							+ transactionUtility;
-					mapItemToTWU.put(item, twu);
+                // ======= END PHIL ====
 
-					// Adding TWU to the item -> twu map
-					if (mapItemToUpdatedTWUandPro.containsKey(item)) {
-						mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility,pro,
-								tid, this.win_size,
-								this.number_of_transactions_batch);
-					} else {
-						mapItemToUpdatedTWUandPro.put(item, new Batch_wise_TWU_and_Pro(
-								this.win_size, this.win_number));
-						mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility,pro,
-								tid, this.win_size,
-								this.number_of_transactions_batch);
-					}
+                // for each item
+                for (int i = 0; i < items.length; i++) {
 
-				}
-			}
-		}
+                    Integer item = Integer.parseInt(items[i]);
+                    float pro = Float.parseFloat(pros[i]);
 
-		// System.out.println("Number of transactions in Window: "+counter);
+                    Float twu = mapItemToTWU.get(item);
+                    twu = (twu == null) ? transactionUtility : twu
+                            + transactionUtility;
+                    mapItemToTWU.put(item, twu);
 
-		for (Integer item : mapItemToTWU.keySet()) {
-			// if the item is promising (TWU >= minutility)
+                    // Adding TWU to the item -> twu map
+                    if (mapItemToUpdatedTWUandPro.containsKey(item)) {
+                        mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility, pro,
+                                tid, this.win_size,
+                                this.number_of_transactions_batch);
+                    } else {
+                        mapItemToUpdatedTWUandPro.put(item, new Batch_wise_TWU_and_Pro(
+                                this.win_size, this.win_number));
+                        mapItemToUpdatedTWUandPro.get(item).addTWUandPro(transactionUtility, pro,
+                                tid, this.win_size,
+                                this.number_of_transactions_batch);
+                    }
 
-			if (mapItemToTWU.get(item) >= min_util) {
-				// create an empty Utility List that we will fill later.
-				UtilityList uList = new UtilityList(item, win_size,
-						windowNumber);
-				mapItemToUtilityList.put(item, uList);
-				// add the item to the list of high TWU items
-				listOfUtilityLists.add(uList);
-				// System.out.println("i: "+item
-				// +"twu: "+mapItemToTWU.get(item));
+                }
+            }
+        }
 
-				// counter++;
+        // System.out.println("Number of transactions in Window: "+counter);
 
-			}
+        for (Integer item : mapItemToTWU.keySet()) {
+            // if the item is promising (TWU >= minutility)
+            if (processDebug) {
+                System.out.println("item: " + item + " ,TWU:" + mapItemToTWU.get(item) + " ,pro:" + mapItemToUpdatedTWUandPro.get(item) + "" +
+                        "\nconstrains min_util:" + min_util + " constrains minPro*|D|:" + transactions_num * min_pro);
+            }
+            if (mapItemToTWU.get(item) >= min_util && mapItemToUpdatedTWUandPro.get(item).sumPro >= transactions_num * min_pro) {
+                // create an empty Utility List that we will fill later.
+                UtilityList uList = new UtilityList(item, win_size,
+                        windowNumber);
+                mapItemToUtilityList.put(item, uList);
+                // add the item to the list of high TWU items
+                listOfUtilityLists.add(uList);
+                // System.out.println("i: "+item
+                // +"twu: "+mapItemToTWU.get(item));
 
-		}
-		System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-		// SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
-		Collections.sort(listOfUtilityLists, new Comparator<UtilityList>() {
-			public int compare(UtilityList o1, UtilityList o2) {
-				// compare the TWU of the items
-				return compareItems(o1.item, o2.item);
-			}
-		});
+                // counter++;
 
-		// SECOND DATABASE PASS TO CONSTRUCT THE UTILITY LISTS
-		// OF 1-ITEMSETS HAVING TWU >= minutil (promising items)
-		tid = (windowNumber - 1) * this.number_of_transactions_batch;
-		for (ArrayList<String> batch_transactions : window) {
-			for (String thisLine : batch_transactions) {
-				tid++;
-				float remainingUtility = 0;
-				float newTWU = 0;
-				
-				
-				// ======= PHIL ====
-				// split the line according to the separator
-				String split[] = thisLine.split(":");
-				// get the list of items
-				String items[] = split[0].split(" ");
-				// the second part is the transaction utility
+            }
+
+        }
+        System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+        // SORT THE LIST OF HIGH TWU ITEMS IN ASCENDING ORDER
+        Collections.sort(listOfUtilityLists, new Comparator<UtilityList>() {
+            public int compare(UtilityList o1, UtilityList o2) {
+                // compare the TWU of the items
+                return compareItems(o1.item, o2.item);
+            }
+        });
+
+        // SECOND DATABASE PASS TO CONSTRUCT THE UTILITY LISTS
+        // OF 1-ITEMSETS HAVING TWU >= minutil (promising items)
+        tid = (windowNumber - 1) * this.number_of_transactions_batch;
+        for (ArrayList<String> batch_transactions : window) {
+            for (String thisLine : batch_transactions) {
+                tid++;
+                float remainingUtility = 0;
+                float newTWU = 0;
+
+
+                // ======= PHIL ====
+                // split the line according to the separator
+                String split[] = thisLine.split(":");
+                // get the list of items
+                String items[] = split[0].split(" ");
+                // the second part is the transaction utility
 //				float transactionUtility = Integer.parseInt(split[1]);  
-				// get the list of utility values corresponding to each item
-				// for that transaction
-				String utilityValues[] = split[2].split(" ");
-		
-				// ======= END PHIL ====
-				
+                // get the list of utility values corresponding to each item
+                // for that transaction
+                String utilityValues[] = split[2].split(" ");
+                String probabilities[] = split[3].split(" ");
+
+                // ======= END PHIL ====
+
 //				String line = thisLine.trim();
 //				String[] lineSplited = line.split(" ");
-				List<Pair> revisedTransaction = new ArrayList<Pair>();
-				
-				// for each item
-				for(int i=0; i <items.length; i++){
-					/// convert values to integers
-					Pair pair = new Pair();
-					pair.item = Integer.parseInt(items[i]);
-					pair.utility = Integer.parseInt(utilityValues[i]);
+                List<Pair> revisedTransaction = new ArrayList<Pair>();
 
-					// if the item has enough utility
-					if (mapItemToTWU.get(pair.item) >= min_top_k_utility_current_window) {
-						// add it
-						revisedTransaction.add(pair);
-						remainingUtility += pair.utility;
-						newTWU += pair.utility; // NEW OPTIMIZATION
-					}
-				}
+                // for each item
+                for (int i = 0; i < items.length; i++) {
+                    /// convert values to integers
+                    Pair pair = new Pair();
+                    pair.item = Integer.parseInt(items[i]);
+                    pair.utility = Integer.parseInt(utilityValues[i]);
+                    pair.pro = Float.parseFloat(probabilities[i]);
 
-				// sort the transaction
-				System.setProperty("java.util.Arrays.useLegacyMergeSort",
-						"true");
-				Collections.sort(revisedTransaction, new Comparator<Pair>() {
-					public int compare(Pair o1, Pair o2) {
-						return compareItems(o1.item, o2.item);
-					}
-				});
+                    // if the item has enough utility
+                    if (mapItemToTWU.get(pair.item) >= min_util && mapItemToUpdatedTWUandPro.get(pair.item).sumPro >= min_pro * transactions_num) {
+                        // add it
+                        revisedTransaction.add(pair);
+                        remainingUtility += pair.utility;
+                        newTWU += pair.utility; // NEW OPTIMIZATION
+                    }
+                }
 
-				// for each item left in the transaction
-				for (int i = 0; i < revisedTransaction.size(); i++) {
-					Pair pair = revisedTransaction.get(i);
+                // sort the transaction
+                System.setProperty("java.util.Arrays.useLegacyMergeSort",
+                        "true");
+                Collections.sort(revisedTransaction, new Comparator<Pair>() {
+                    public int compare(Pair o1, Pair o2) {
+                        return compareItems(o1.item, o2.item);
+                    }
+                });
+
+                // for each item left in the transaction
+                for (int i = 0; i < revisedTransaction.size(); i++) {
+                    Pair pair = revisedTransaction.get(i);
 
 //					float remain = remainingUtility; // FOR OPTIMIZATION
 
-					// subtract the utility of this item from the remaining
-					// utility
-					remainingUtility = remainingUtility - pair.utility;
+                    // subtract the utility of this item from the remaining
+                    // utility
+                    remainingUtility = remainingUtility - pair.utility;
 
-					// get the utility list of this item
-					UtilityList utilityListOfItem = mapItemToUtilityList
-							.get(pair.item);
+                    // get the utility list of this item
+                    UtilityList utilityListOfItem = mapItemToUtilityList
+                            .get(pair.item);
 
-					// if(pair.item==1)
-					// System.out.println("1");
-					// Add a new Element to the utility list of this item
-					// corresponding to this transaction
-					Element element = new Element(tid, pair.utility,
-							remainingUtility);
+                    // if(pair.item==1)
+                    // System.out.println("1");
+                    // Add a new Element to the utility list of this item
+                    // corresponding to this transaction
+                    Element element = new Element(tid, pair.utility,
+                            remainingUtility, pair.pro);
 
-					utilityListOfItem.addElement(element, win_size,
-							number_of_transactions_batch);
+                    utilityListOfItem.addElement(element, win_size,
+                            number_of_transactions_batch);
 
-					// if(pair.item==1)
-					// System.out.println("1");
-					// BEGIN NEW OPTIMIZATION for FHM
+                    // if(pair.item==1)
+                    // System.out.println("1");
+                    // BEGIN NEW OPTIMIZATION for FHM
 
-					// Adding TWU to the item -> item, twu FMAP
-					Map<Integer, FMAP_TWU> mapFMAPItem = mapFMAP.get(pair.item);
-					if (mapFMAPItem == null) {
-						mapFMAPItem = new HashMap<Integer, FMAP_TWU>();
-						mapFMAP.put(pair.item, mapFMAPItem);
-						// FMAP_TWU map= new
-						// FMAP_TWU(this.win_size,this.win_number);
-						// map.addTWU(newTWU, tid, this.win_size,
-						// this.number_of_transactions_batch);
-						// mapFMAPItem.put(pair.item,map);
-					}
-					for (int j = i + 1; j < revisedTransaction.size(); j++) {
-						Pair pairAfter = revisedTransaction.get(j);
-						FMAP_TWU map = mapFMAPItem.get(pairAfter.item);
-						if (map == null) {
-							map = new FMAP_TWU(this.win_size, this.win_number);
-							map.addTWU(newTWU, tid, this.win_size,
-									this.number_of_transactions_batch);
-							mapFMAPItem.put(pairAfter.item, map);
-						} else {
-							map.addTWU(newTWU, tid, this.win_size,
-									this.number_of_transactions_batch);
-							mapFMAPItem.put(pairAfter.item, map);
-						}
-						mapFMAP.put(pair.item, mapFMAPItem);
-					}
+                    // Adding TWU to the item -> item, twu FMAP
+                    Map<Integer, FMAP_TWU_and_Pro> mapFMAPItem = mapFMAP.get(pair.item);
+                    if (mapFMAPItem == null) {
+                        mapFMAPItem = new HashMap<Integer, FMAP_TWU_and_Pro>();
+                        mapFMAP.put(pair.item, mapFMAPItem);
+                        // FMAP_TWU map= new
+                        // FMAP_TWU(this.win_size,this.win_number);
+                        // map.addTWU(newTWU, tid, this.win_size,
+                        // this.number_of_transactions_batch);
+                        // mapFMAPItem.put(pair.item,map);
+                    }
+                    for (int j = i + 1; j < revisedTransaction.size(); j++) {
+                        Pair pairAfter = revisedTransaction.get(j);
+                        float pro_both = pair.pro * pairAfter.pro;
+                        FMAP_TWU_and_Pro map = mapFMAPItem.get(pairAfter.item);
+                        if (map == null) {
+                            map = new FMAP_TWU_and_Pro(this.win_size, this.win_number);
+                            map.addTWUandPro(newTWU, pro_both, tid, this.win_size,
+                                    this.number_of_transactions_batch);
+                            mapFMAPItem.put(pairAfter.item, map);
+                        } else {
+                            map.addTWUandPro(newTWU, pro_both, tid, this.win_size,
+                                    this.number_of_transactions_batch);
+                            mapFMAPItem.put(pairAfter.item, map);
+                        }
+                        mapFMAP.put(pair.item, mapFMAPItem);
+                    }
 
-					// END OPTIMIZATION of FHM
-				}
+                    // END OPTIMIZATION of FHM
+                }
 
-			}
-		}
+            }
+        }
+//code for increasing min_util for mining top-k,due to convert top-k mining into min_util based mining,this code can be commented
 
-		// Add exact utility of single items to top-k buffer
-		for (UtilityList temp : listOfUtilityLists) {
-			int[] itemset = new int[1];
-			itemset[0] = temp.item;
-			Itemset i = new Itemset(itemset, temp.sumIutils);
-			if (temp.batches.containsKey(this.win_number))
-				i.last_batch_utility = temp.sumIutils
-						- temp.batches.get(Collections.min(temp.batches
-								.keySet())).sum_batch_iutils;
-			else
-				i.last_batch_utility = temp.sumIutils;
+//        // Add exact utility of single items to top-k buffer
+//        for (UtilityList temp : listOfUtilityLists) {
+//            int[] itemset = new int[1];
+//            itemset[0] = temp.item;
+//            Itemset i = new Itemset(itemset, temp.sumIutils);
+//            //unknown the exact use of last_batch_utility
+//            if (temp.batches.containsKey(this.win_number))
+//                i.last_batch_utility = temp.sumIutils
+//                        - temp.batches.get(Collections.min(temp.batches
+//                        .keySet())).sum_batch_iutils;
+//            else
+//                i.last_batch_utility = temp.sumIutils;
+//			//unknown the exact use of last_batch_utility
+//            top_k_hui.add(i);
+//
+//            // if(top_k_hui.size()<=k)
+//            // PQ.add(temp.sumIutils -
+//            // temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
+//            // );
+//
+//            // sort tophui list in descending utility order
+//            System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+//            Collections.sort(top_k_hui, new Comparator<Itemset>() {
+//                public int compare(Itemset o1, Itemset o2) {
+//                    return (int) (o2.getExactUtility() - o1.getExactUtility());
+//                }
+//            });
+//            if (top_k_hui.size() > k) {
+//                int lastindex = top_k_hui.size() - 1;
+//
+//                Itemset set = top_k_hui.get(lastindex);
+//                top_k_hui.remove(lastindex);
+//                // PQ.remove();
+//                // PQ.add(temp.sumIutils -
+//                // temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
+//                // );
+//
+//                // PQ.remove(set.getExactUtility());
+//                // check if utility of removed itemset is greater than minimum
+//                // utility, if greater than increase the minimum utility of
+//                // itemset with the utility of removed itemset
+//                if (set.getExactUtility() > min_top_k_utility_current_window) {
+//                    min_top_k_utility_current_window = set.getExactUtility();
+//                }
+//            }
+//
+//            // writer.append("item: "+temp.item+" sumIutils: "+temp.sumIutils+" sumRutils: "+temp.sumRutils+" support: "+temp.elements.size()+"\n");
+//        }
 
-			top_k_hui.add(i);
+//        if (top_k_hui.size() >= k)
+//            min_top_k_utility_current_window = top_k_hui.get(
+//                    top_k_hui.size() - 1).getExactUtility();
 
-			// if(top_k_hui.size()<=k)
-			// PQ.add(temp.sumIutils -
-			// temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
-			// );
+        // min_top_k_utility_current_window=top_k_hui.get(top_k_hui.size()-1).getExactUtility();
+        // writer.close();
+        long temp = System.currentTimeMillis();
+        try {
+            fhmInitialCall(new int[0], null, listOfUtilityLists);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        fhm_time = System.currentTimeMillis() - temp;
 
-			// sort tophui list in descending utility order
-			System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-			Collections.sort(top_k_hui, new Comparator<Itemset>() {
-				public int compare(Itemset o1, Itemset o2) {
-					return (int) (o2.getExactUtility() - o1.getExactUtility());
-				}
-			});
-			if (top_k_hui.size() > k) {
-				int lastindex = top_k_hui.size() - 1;
-
-				Itemset set = top_k_hui.get(lastindex);
-				top_k_hui.remove(lastindex);
-				// PQ.remove();
-				// PQ.add(temp.sumIutils -
-				// temp.batches.get(Collections.min(temp.batches.keySet())).sum_batch_iutils
-				// );
-
-				// PQ.remove(set.getExactUtility());
-				// check if utility of removed itemset is greater than minimum
-				// utility, if greater than increase the minimum utility of
-				// itemset with the utility of removed itemset
-				if (set.getExactUtility() > min_top_k_utility_current_window) {
-					min_top_k_utility_current_window = set.getExactUtility();
-				}
-			}
-
-			// writer.append("item: "+temp.item+" sumIutils: "+temp.sumIutils+" sumRutils: "+temp.sumRutils+" support: "+temp.elements.size()+"\n");
-		}
-
-		if (top_k_hui.size() >= k)
-			min_top_k_utility_current_window = top_k_hui.get(
-					top_k_hui.size() - 1).getExactUtility();
-
-		// min_top_k_utility_current_window=top_k_hui.get(top_k_hui.size()-1).getExactUtility();
-		// writer.close();
-		long temp = System.currentTimeMillis();
-		try {
-			fhmInitialCall(new int[0], null, listOfUtilityLists);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		fhm_time = System.currentTimeMillis() - temp;
+        //delete top-k mode
 //		float curr_top_k_util = this.min_top_k_utility_current_window;
-		if(debug){
-			System.out.println("Top k utility: "
-					+ top_k_hui.get(top_k_hui.size() - 1).getExactUtility());
-		}
-		
-		System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-		Collections.sort(top_k_hui, new Comparator<Itemset>() {
-			public int compare(Itemset o1, Itemset o2) {
-				return (int) ((o2.last_batch_utility - o1.last_batch_utility));
-			}
-		});
-		if (top_k_hui.size() >= k)
-			min_top_k_utility_current_window = top_k_hui.get(top_k_hui
-					.size() - 1).last_batch_utility;
-		else
-			min_top_k_utility_current_window = 0;
+//        if (debug) {
+//            System.out.println("Top k utility: "
+//                    + top_k_hui.get(top_k_hui.size() - 1).getExactUtility());
+//        }
+//
+//        System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+//        Collections.sort(top_k_hui, new Comparator<Itemset>() {
+//            public int compare(Itemset o1, Itemset o2) {
+//                return (int) ((o2.last_batch_utility - o1.last_batch_utility));
+//            }
+//        });
+//        if (top_k_hui.size() >= k)
+//            min_top_k_utility_current_window = top_k_hui.get(top_k_hui
+//                    .size() - 1).last_batch_utility;
+//        else
+//            min_top_k_utility_current_window = 0;
 
 //		top_k_hui.clear();
 
-		endTimestamp2 = System.currentTimeMillis();
-		//
-		// try {
-		// printStats(resultFile, transactionFileLoc,curr_top_k_util);
-		//
-		// } catch (IOException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// }
-		// System.out.println("FHM Time: "+fhm_time+" Construct time: "+construct_time+" Number of calls: "+construct_calls);
-		// System.out.println("Top k HUI utility:"+this.min_top_k_utility_current_window);
-		// System.out.println("Top k HUI utility PQ:"+PQ.peek()+" "+PQ.size()+" "+PQ.toString());
-		// this.min_top_k_utility_current_window=PQ.peek();
-		// PQ.clear();
-		// endTimestamp = System.currentTimeMillis();
-	}
+        endTimestamp2 = System.currentTimeMillis();
+        //
+        // try {
+        // printStats(resultFile, transactionFileLoc,curr_top_k_util);
+        //
+        // } catch (IOException e) {
+        // // TODO Auto-generated catch block
+        // e.printStackTrace();
+        // }
+        // System.out.println("FHM Time: "+fhm_time+" Construct time: "+construct_time+" Number of calls: "+construct_calls);
+        // System.out.println("Top k HUI utility:"+this.min_top_k_utility_current_window);
+        // System.out.println("Top k HUI utility PQ:"+PQ.peek()+" "+PQ.size()+" "+PQ.toString());
+        // this.min_top_k_utility_current_window=PQ.peek();
+        // PQ.clear();
+        // endTimestamp = System.currentTimeMillis();
+    }
 
-	/**
-	 * Lexicographic ordering (asscending order)
-	 */
-	private int compareItems(int item1, int item2) {
-		/*
-		 * float twu1=0F, twu2=0F; if(mapItemToTWU.containsKey(item1)) {
-		 * twu1=mapItemToTWU.get(item1); } if(mapItemToTWU.containsKey(item2)) {
-		 * twu2=mapItemToTWU.get(item2); }
-		 */
-		// int compare = (int)(twu1 - twu2);
-		// return (compare == 0)? item1 - item2 : compare;
-		if (mapItemToTWU.containsKey(item1) && mapItemToTWU.containsKey(item2)) {
-			if (mapItemToTWU.get(item1) > mapItemToTWU.get(item2))
-				return 1;
-			else if (mapItemToTWU.get(item1) < mapItemToTWU.get(item2))
-				return -1;
-			else {
-				if (item1 > item2)
-					return 1;
-				else
-					return -1;
-			}
-		} else
-			return 0;
+    /**
+     * Lexicographic ordering (asscending order)
+     */
+    private int compareItems(int item1, int item2) {
+        /*
+         * float twu1=0F, twu2=0F; if(mapItemToTWU.containsKey(item1)) {
+         * twu1=mapItemToTWU.get(item1); } if(mapItemToTWU.containsKey(item2)) {
+         * twu2=mapItemToTWU.get(item2); }
+         */
+        // int compare = (int)(twu1 - twu2);
+        // return (compare == 0)? item1 - item2 : compare;
+        if (mapItemToTWU.containsKey(item1) && mapItemToTWU.containsKey(item2)) {
+            if (mapItemToTWU.get(item1) > mapItemToTWU.get(item2))
+                return 1;
+            else if (mapItemToTWU.get(item1) < mapItemToTWU.get(item2))
+                return -1;
+            else {
+                if (item1 > item2)
+                    return 1;
+                else
+                    return -1;
+            }
+        } else
+            return 0;
 
-		// return item1-item2;
-	}
+        // return item1-item2;
+    }
 
-	/**
-	 * This is the recursive method to find all high utility itemsets. It writes
-	 * the itemsets to the output file.
-	 * 
-	 * @param prefix
-	 *            This is the current prefix. Initially, it is empty.
-	 * @param pUL
-	 *            This is the Utility List of the prefix. Initially, it is
-	 *            empty.
-	 * @param ULs
-	 *            The utility lists corresponding to each extension of the
-	 *            prefix.
-	 * @param minUtility
-	 *            The minUtility threshold.
-	 * @throws IOException
-	 */
+    /**
+     * This is the recursive method to find all high utility itemsets. It writes
+     * the itemsets to the output file.
+     *
+     * @param prefix     This is the current prefix. Initially, it is empty.
+     * @param pUL        This is the Utility List of the prefix. Initially, it is
+     *                   empty.
+     * @param ULs        The utility lists corresponding to each extension of the
+     *                   prefix.
+     * @param minUtility The minUtility threshold.
+     * @throws IOException
+     */
 
-	private void fhmUpdateCall(int[] prefix, UtilityList pUL, List<UtilityList> ULs)
-			throws IOException {
+    private void fhmUpdateCall(int[] prefix, UtilityList pUL, List<UtilityList> ULs)
+            throws IOException {
 
-		// For each extension X of prefix P
-		for (int i = 0; i < ULs.size(); i++) {
-			UtilityList X = ULs.get(i);
+        // For each extension X of prefix P
+        for (int i = 0; i < ULs.size(); i++) {
+            UtilityList X = ULs.get(i);
 
-			// If pX is a high utility itemset.
-			// we save the itemset: pX
-			if (X.sumIutils >= min_top_k_utility_current_window
-					&& prefix.length > 0 && X.sumIutils != 0f) {
-				huiCount++;
-				int[] itemset = new int[prefix.length + 1];
-				System.arraycopy(prefix, 0, itemset, 0, prefix.length);
-				itemset[prefix.length] = X.item;
+            // If pX is a high utility itemset.
+            // we save the itemset: pX
+            if (X.sumIutils >= min_top_k_utility_current_window
+                    && prefix.length > 0 && X.sumIutils != 0f) {
+                huiCount++;
+                int[] itemset = new int[prefix.length + 1];
+                System.arraycopy(prefix, 0, itemset, 0, prefix.length);
+                itemset[prefix.length] = X.item;
 
-				Itemset item_set = new Itemset(itemset, X.sumIutils);
-				if (X.batches.containsKey(this.win_number))
-					item_set.last_batch_utility = X.sumIutils
-							- X.batches
-									.get(Collections.min(X.batches.keySet())).sum_batch_iutils;
-				else
-					item_set.last_batch_utility = X.sumIutils;
+                Itemset item_set = new Itemset(itemset, X.sumIutils);
+                if (X.batches.containsKey(this.win_number))
+                    item_set.last_batch_utility = X.sumIutils
+                            - X.batches
+                            .get(Collections.min(X.batches.keySet())).sum_batch_iutils;
+                else
+                    item_set.last_batch_utility = X.sumIutils;
 
-				top_k_hui.add(item_set);
+                top_k_hui.add(item_set);
 
-				// if(top_k_hui.size()<=k)
-				// PQ.add(X.sumIutils-
-				// X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
+                // if(top_k_hui.size()<=k)
+                // PQ.add(X.sumIutils-
+                // X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
 
-				// sort tophui list in descending utility order
-				System.setProperty("java.util.Arrays.useLegacyMergeSort",
-						"true");
-				Collections.sort(top_k_hui, new Comparator<Itemset>() {
-					public int compare(Itemset o1, Itemset o2) {
-						return (int) (o2.getExactUtility() - o1
-								.getExactUtility());
-					}
-				});
-				System.setProperty("java.util.Arrays.useLegacyMergeSort",
-						"false");
-				if (top_k_hui.size() > k) {
-					int lastindex = top_k_hui.size() - 1;
+                // sort tophui list in descending utility order
+                System.setProperty("java.util.Arrays.useLegacyMergeSort",
+                        "true");
+                Collections.sort(top_k_hui, new Comparator<Itemset>() {
+                    public int compare(Itemset o1, Itemset o2) {
+                        return (int) (o2.getExactUtility() - o1
+                                .getExactUtility());
+                    }
+                });
+                System.setProperty("java.util.Arrays.useLegacyMergeSort",
+                        "false");
+                if (top_k_hui.size() > k) {
+                    int lastindex = top_k_hui.size() - 1;
 
-					Itemset set = top_k_hui.get(lastindex);
-					top_k_hui.remove(lastindex);
-					// PQ.remove();
-					// PQ.add(X.sumIutils-
-					// X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
+                    Itemset set = top_k_hui.get(lastindex);
+                    top_k_hui.remove(lastindex);
+                    // PQ.remove();
+                    // PQ.add(X.sumIutils-
+                    // X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
 
-					// check if utility of removed itemset is greater than
-					// minimum
-					// utility, if greater than increase the minimum utility of
-					// itemset with the utility of removed itemset
-					if (set.getExactUtility() > min_top_k_utility_current_window) {
-						min_top_k_utility_current_window = set
-								.getExactUtility();
-					}
-				}
-				if (top_k_hui.size() >= k)
-					min_top_k_utility_current_window = top_k_hui.get(
-							top_k_hui.size() - 1).getExactUtility();
+                    // check if utility of removed itemset is greater than
+                    // minimum
+                    // utility, if greater than increase the minimum utility of
+                    // itemset with the utility of removed itemset
+                    if (set.getExactUtility() > min_top_k_utility_current_window) {
+                        min_top_k_utility_current_window = set
+                                .getExactUtility();
+                    }
+                }
+                if (top_k_hui.size() >= k)
+                    min_top_k_utility_current_window = top_k_hui.get(
+                            top_k_hui.size() - 1).getExactUtility();
 
 
-			}
+            }
 
-			// If the sum of the remaining utilities for pX
-			// is higher than minUtility, we explore extensions of pX.
-			// (this is the pruning condition)
-			if (X.sumIutils + X.sumRutils >= min_top_k_utility_current_window
-					&& X.sumIutils + X.sumRutils != 0f) {
+            // If the sum of the remaining utilities for pX
+            // is higher than minUtility, we explore extensions of pX.
+            // (this is the pruning condition)
+            if (X.sumIutils + X.sumRutils >= min_top_k_utility_current_window
+                    && X.sumIutils + X.sumRutils != 0f) {
 
-				// This list will contain the utility lists of pX extensions.
-				List<UtilityList> exULs = new ArrayList<UtilityList>();
-				// For each extension of p appearing
-				// after X according to the ascending order
-				for (int j = i + 1; j < ULs.size(); j++) {
-					UtilityList Y = ULs.get(j);
+                // This list will contain the utility lists of pX extensions.
+                List<UtilityList> exULs = new ArrayList<UtilityList>();
+                // For each extension of p appearing
+                // after X according to the ascending order
+                for (int j = i + 1; j < ULs.size(); j++) {
+                    UtilityList Y = ULs.get(j);
 
-					// ======================== NEW OPTIMIZATION USED IN FHM
-					Map<Integer, FMAP_TWU> mapTWUF = mapFMAP.get(X.item);
-					if (mapTWUF != null) {
-						Float twuF = null;
-						if (mapTWUF.containsKey(Y.item))
-							twuF = mapTWUF.get(Y.item).sumTWU;
-						if (twuF != null
-								&& twuF < min_top_k_utility_current_window) {
-							continue;
+                    // ======================== NEW OPTIMIZATION USED IN FHM
+                    Map<Integer, FMAP_TWU> mapTWUF = mapFMAP.get(X.item);
+                    if (mapTWUF != null) {
+                        Float twuF = null;
+                        if (mapTWUF.containsKey(Y.item))
+                            twuF = mapTWUF.get(Y.item).sumTWU;
+                        if (twuF != null
+                                && twuF < min_top_k_utility_current_window) {
+                            continue;
+                        }
+                    }
+                    candidateCount++;
+                    total++;
+                    // =========================== END OF NEW OPTIMIZATION
+
+                    // we construct the extension pXY
+                    // and add it to the list of extensions of pX
+                    UtilityList temp = construct(pUL, X, Y);
+
+                    exULs.add(temp);
+                }
+                // We create new prefix pX
+                int[] newPrefix = new int[prefix.length + 1];
+                System.arraycopy(prefix, 0, newPrefix, 0, prefix.length);
+                newPrefix[prefix.length] = X.item;
+
+                // We make a recursive call to discover all itemsets with the
+                // prefix pXY
+                fhmUpdateCall(newPrefix, X, exULs);
+            }
+        }
+    }
+
+    private void fhmInitialCall(int[] prefix, UtilityList pUL, List<UtilityList> ULs)
+            throws IOException {
+
+        // For each extension X of prefix P
+        for (int i = 0; i < ULs.size(); i++) {
+            UtilityList X = ULs.get(i);
+
+            // If pX is a high utility itemset.
+            // we save the itemset: pX
+            if (X.sumIutils >= min_util &&
+                   X.sumPro>=min_pro*transactions_num && prefix.length > 0 && X.sumIutils != 0f) {
+
+
+                //convert top-k mining into min_util based mining
+				//write out way also has to be changed
+				writeOut(prefix,prefix.length,X.item,X.sumIutils);
+
+//                int[] itemset = new int[prefix.length + 1];
+//                System.arraycopy(prefix, 0, itemset, 0, prefix.length);
+//                itemset[prefix.length] = X.item;
+//
+//                Itemset item_set = new Itemset(itemset, X.sumIutils);
+//                if (X.batches.containsKey(this.win_number))
+//                    item_set.last_batch_utility = X.sumIutils
+//                            - X.batches
+//                            .get(Collections.min(X.batches.keySet())).sum_batch_iutils;
+//                else
+//                    item_set.last_batch_utility = X.sumIutils;
+//
+//                top_k_hui.add(item_set);
+//
+//                // if(top_k_hui.size()<=k)
+//                // PQ.add(X.sumIutils-
+//                // X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
+//
+//                // sort tophui list in descending utility order
+//                System.setProperty("java.util.Arrays.useLegacyMergeSort",
+//                        "true");
+//                Collections.sort(top_k_hui, new Comparator<Itemset>() {
+//                    public int compare(Itemset o1, Itemset o2) {
+//                        return (int) (o2.getExactUtility() - o1
+//                                .getExactUtility());
+//                    }
+//                });
+//                System.setProperty("java.util.Arrays.useLegacyMergeSort",
+//                        "false");
+//                if (top_k_hui.size() > k) {
+//                    int lastindex = top_k_hui.size() - 1;
+//
+//                    Itemset set = top_k_hui.get(lastindex);
+//                    top_k_hui.remove(lastindex);
+//                    // PQ.remove();
+//                    // PQ.add(X.sumIutils-
+//                    // X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
+//
+//                    // check if utility of removed itemset is greater than
+//                    // minimum
+//                    // utility, if greater than increase the minimum utility of
+//                    // itemset with the utility of removed itemset
+//                    if (set.getExactUtility() > min_top_k_utility_current_window) {
+//                        min_top_k_utility_current_window = set
+//                                .getExactUtility();
+//                    }
+//                }
+//                if (top_k_hui.size() >= k)
+//                    min_top_k_utility_current_window = top_k_hui.get(
+//                            top_k_hui.size() - 1).getExactUtility();
+
+
+            }
+
+            // If the sum of the remaining utilities for pX
+            // is higher than minUtility, we explore extensions of pX.
+            // (this is the pruning condition)
+            if (X.sumPro>min_pro*transactions_num && X.sumIutils + X.sumRutils >= min_util
+                    && X.sumIutils + X.sumRutils != 0f) {
+				// ======================== NEW OPTIMIZATION USED IN FHM
+				Map<Integer, FMAP_TWU_and_Pro> mapTWUFandPro = mapFMAP.get(X.item);
+
+                // This list will contain the utility lists of pX extensions.
+                List<UtilityList> exULs = new ArrayList<UtilityList>();
+                // For each extension of p appearing
+                // after X according to the ascending order
+                for (int j = i + 1; j < ULs.size(); j++) {
+                    UtilityList Y = ULs.get(j);
+
+//                    // ======================== NEW OPTIMIZATION USED IN FHM
+//                    Map<Integer, FMAP_TWU_and_Pro> mapTWUF = mapFMAP.get(X.item);
+                    if (mapTWUFandPro != null) {
+                        Float twuF = null;
+                        Float proF = null;
+                        if (mapTWUFandPro.containsKey(Y.item)){
+							twuF = mapTWUFandPro.get(Y.item).sumTWU;
+							proF = mapTWUFandPro.get(Y.item).sumPro;
 						}
-					}
-					candidateCount++;
-					total++;
-					// =========================== END OF NEW OPTIMIZATION
-
-					// we construct the extension pXY
-					// and add it to the list of extensions of pX
-					UtilityList temp = construct(pUL, X, Y);
-
-					exULs.add(temp);
-				}
-				// We create new prefix pX
-				int[] newPrefix = new int[prefix.length + 1];
-				System.arraycopy(prefix, 0, newPrefix, 0, prefix.length);
-				newPrefix[prefix.length] = X.item;
-
-				// We make a recursive call to discover all itemsets with the
-				// prefix pXY
-				fhmUpdateCall(newPrefix, X, exULs);
-			}
-		}
-	}
-
-	private void fhmInitialCall(int[] prefix, UtilityList pUL, List<UtilityList> ULs)
-			throws IOException {
-
-		// For each extension X of prefix P
-		for (int i = 0; i < ULs.size(); i++) {
-			UtilityList X = ULs.get(i);
-
-			// If pX is a high utility itemset.
-			// we save the itemset: pX
-			if (X.sumIutils >= min_top_k_utility_current_window
-					&& prefix.length > 0 && X.sumIutils != 0f) {
-				huiCount++;
-				int[] itemset = new int[prefix.length + 1];
-				System.arraycopy(prefix, 0, itemset, 0, prefix.length);
-				itemset[prefix.length] = X.item;
-
-				Itemset item_set = new Itemset(itemset, X.sumIutils);
-				if (X.batches.containsKey(this.win_number))
-					item_set.last_batch_utility = X.sumIutils
-							- X.batches
-									.get(Collections.min(X.batches.keySet())).sum_batch_iutils;
-				else
-					item_set.last_batch_utility = X.sumIutils;
-
-				top_k_hui.add(item_set);
-
-				// if(top_k_hui.size()<=k)
-				// PQ.add(X.sumIutils-
-				// X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
-
-				// sort tophui list in descending utility order
-				System.setProperty("java.util.Arrays.useLegacyMergeSort",
-						"true");
-				Collections.sort(top_k_hui, new Comparator<Itemset>() {
-					public int compare(Itemset o1, Itemset o2) {
-						return (int) (o2.getExactUtility() - o1
-								.getExactUtility());
-					}
-				});
-				System.setProperty("java.util.Arrays.useLegacyMergeSort",
-						"false");
-				if (top_k_hui.size() > k) {
-					int lastindex = top_k_hui.size() - 1;
-
-					Itemset set = top_k_hui.get(lastindex);
-					top_k_hui.remove(lastindex);
-					// PQ.remove();
-					// PQ.add(X.sumIutils-
-					// X.batches.get(Collections.min(X.batches.keySet())).sum_batch_iutils);
-
-					// check if utility of removed itemset is greater than
-					// minimum
-					// utility, if greater than increase the minimum utility of
-					// itemset with the utility of removed itemset
-					if (set.getExactUtility() > min_top_k_utility_current_window) {
-						min_top_k_utility_current_window = set
-								.getExactUtility();
-					}
-				}
-				if (top_k_hui.size() >= k)
-					min_top_k_utility_current_window = top_k_hui.get(
-							top_k_hui.size() - 1).getExactUtility();
-
-
-			}
-
-			// If the sum of the remaining utilities for pX
-			// is higher than minUtility, we explore extensions of pX.
-			// (this is the pruning condition)
-			if (X.sumIutils + X.sumRutils >= min_top_k_utility_current_window
-					&& X.sumIutils + X.sumRutils != 0f) {
-
-				// This list will contain the utility lists of pX extensions.
-				List<UtilityList> exULs = new ArrayList<UtilityList>();
-				// For each extension of p appearing
-				// after X according to the ascending order
-				for (int j = i + 1; j < ULs.size(); j++) {
-					UtilityList Y = ULs.get(j);
-
-					// ======================== NEW OPTIMIZATION USED IN FHM
-					Map<Integer, FMAP_TWU> mapTWUF = mapFMAP.get(X.item);
-					if (mapTWUF != null) {
-						Float twuF = null;
-						if (mapTWUF.containsKey(Y.item))
-							twuF = mapTWUF.get(Y.item).sumTWU;
-						if (twuF != null
-								&& twuF < min_top_k_utility_current_window) {
+                        if (twuF != null && proF != null && (proF < min_pro * number_of_transactions_batch
+								|| twuF < min_util)) {
 							continue;
-						}
-					}
-					candidateCount++;
-					total++;
-					// =========================== END OF NEW OPTIMIZATION
+                        }
+                    }
+                    candidateCount++;
+                    total++;
+                    // =========================== END OF NEW OPTIMIZATION
 
-					// we construct the extension pXY
-					// and add it to the list of extensions of pX
-					UtilityList temp = construct(pUL, X, Y);
+                    // we construct the extension pXY
+                    // and add it to the list of extensions of pX
+                    UtilityList temp = construct(pUL, X, Y);
 
-					exULs.add(temp);
-				}
-				// We create new prefix pX
-				int[] newPrefix = new int[prefix.length + 1];
-				System.arraycopy(prefix, 0, newPrefix, 0, prefix.length);
-				newPrefix[prefix.length] = X.item;
+                    exULs.add(temp);
+                }
+                // We create new prefix pX
+                int[] newPrefix = new int[prefix.length + 1];
+                System.arraycopy(prefix, 0, newPrefix, 0, prefix.length);
+                newPrefix[prefix.length] = X.item;
 
-				// We make a recursive call to discover all itemsets with the
-				// prefix pXY
-				fhmInitialCall(newPrefix, X, exULs);
-			}
-		}
-	}
+                // We make a recursive call to discover all itemsets with the
+                // prefix pXY
+                fhmInitialCall(newPrefix, X, exULs);
+            }
+        }
+    }
 
-	/**
-	 * This method constructs the utility list of pXY
-	 * 
-	 * @param P
-	 *            : the utility list of prefix P.
-	 * @param px
-	 *            : the utility list of pX
-	 * @param py
-	 *            : the utility list of pY
-	 * @return the utility list of pXY
-	 */
-	private UtilityList construct(UtilityList P, UtilityList px, UtilityList py) {
-		construct_calls++;
-		long temp = System.currentTimeMillis();
-		// create an empty utility list for pXY
-		UtilityList pxyUL = new UtilityList(py.item, win_size, this.win_number);
+    /**
+     * This method constructs the utility list of pXY
+     *
+     * @param P  : the utility list of prefix P.
+     * @param px : the utility list of pX
+     * @param py : the utility list of pY
+     * @return the utility list of pXY
+     */
+    private UtilityList construct(UtilityList P, UtilityList px, UtilityList py) {
+        construct_calls++;
+        long temp = System.currentTimeMillis();
+        // create an empty utility list for pXY
+        UtilityList pxyUL = new UtilityList(py.item, win_size, this.win_number);
 
-		// Find common batches in Utility Lists of Px and Py
+        // Find common batches in Utility Lists of Px and Py
 
-		Set<Integer> common_batches = new HashSet<Integer>();
-		common_batches.addAll(px.batches.keySet());
-		common_batches.retainAll(py.batches.keySet());
+        Set<Integer> common_batches = new HashSet<Integer>();
+        common_batches.addAll(px.batches.keySet());
+        common_batches.retainAll(py.batches.keySet());
 
-		for (int batch : common_batches) {
-			for (Element ex : px.batches.get(batch).elements) {
-				Element ey = findElementWithTID(py.batches.get(batch).elements,
-						ex.tid);
-				if (ey == null) {
-					continue;
-				}
-				// if the prefix p is null
-				if (P == null) {
-					// Create the new element
-					Element eXY = new Element(ex.tid, ex.iutils + ey.iutils,
-							ey.rutils);
-					// add the new element to the utility list of pXY
-					pxyUL.addElement(eXY, win_size,
-							number_of_transactions_batch);
+        for (int batch : common_batches) {
+            for (Element ex : px.batches.get(batch).elements) {
+                Element ey = findElementWithTID(py.batches.get(batch).elements,
+                        ex.tid);
+                if (ey == null) {
+                    continue;
+                }
+                // if the prefix p is null
+                if (P == null) {
+                    // Create the new element
+                    Element eXY = new Element(ex.tid, ex.iutils + ey.iutils,
+                            ey.rutils,ex.pro*ey.pro);
+                    // add the new element to the utility list of pXY
+                    pxyUL.addElement(eXY, win_size,
+                            number_of_transactions_batch);
 
-				} else {
-					// find the element in the utility list of p wih the same
-					// tid
-					Element e = findElementWithTID(
-							P.batches.get(batch).elements, ex.tid);
-					if (e != null) {
-						// Create new element
+                } else {
+                    // find the element in the utility list of p wih the same
+                    // tid
+                    Element e = findElementWithTID(
+                            P.batches.get(batch).elements, ex.tid);
+                    if (e != null) {
+                        // Create new element
 						Element eXY = new Element(ex.tid, ex.iutils + ey.iutils
-								- e.iutils, ey.rutils);
-						// add the new element to the utility list of pXY
-						pxyUL.addElement(eXY, win_size,
-								number_of_transactions_batch);
-					}
-				}
-			}
+								- e.iutils, ey.rutils, ex.pro * ey.pro / e.pro);
+                        // add the new element to the utility list of pXY
+                        pxyUL.addElement(eXY, win_size,
+                                number_of_transactions_batch);
+                    }
+                }
+            }
 
+        }
+        construct_time = construct_time + (System.currentTimeMillis() - temp);
+        // return the utility list of pXY.
+        return pxyUL;
+    }
+
+    /**
+     * Do a binary search to find the element with a given tid in a utility list
+     *
+     * @param ulist the utility list
+     * @param tid   the tid
+     * @return the element or null if none has the tid.
+     */
+    private Element findElementWithTID(List<Element> elements, int tid) {
+        List<Element> list = elements;
+
+        // perform a binary search to check if the subset appears in level k-1.
+        int first = 0;
+        int last = list.size() - 1;
+
+        // the binary search
+        while (first <= last) {
+            int middle = (first + last) >>> 1; // divide by 2
+
+            if (list.get(middle).tid < tid) {
+                first = middle + 1; // the itemset compared is larger than the
+                // subset according to the lexical order
+            } else if (list.get(middle).tid > tid) {
+                last = middle - 1; // the itemset compared is smaller than the
+                // subset is smaller according to the
+                // lexical order
+            } else {
+                return list.get(middle);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Write the result to a file
+     *
+     * @param path         the output file path
+     * @param appendToFile whether to append or overwrite to the result file
+     * @throws IOException if an exception for reading/writing to file
+     */
+    public void writeResultTofile(String path, boolean appendToFile) throws IOException {
+        processedBatchCount++;
+
+        BufferedWriter writer = new BufferedWriter(new FileWriter(path, appendToFile));
+
+        if (appendToFile) {
+            writer.newLine();
+            writer.write("@NEXT_BATCH");
+            writer.newLine();
+        }
+
+        Iterator<Itemset> iter = top_k_hui.iterator();
+        while (iter.hasNext()) {
+            StringBuffer buffer = new StringBuffer();
+            Itemset itemset = (Itemset) iter.next();
+
+            // append the prefix
+            for (int i = 0; i < itemset.itemset.length; i++) {
+                buffer.append(itemset.itemset[i]);
+                buffer.append(' ');
+            }
+
+            // append the utility value
+            buffer.append(" #UTIL: ");
+            buffer.append(itemset.utility);
+
+            // write to file
+            writer.write(buffer.toString());
+            if (iter.hasNext()) {
+                writer.newLine();
+            }
+        }
+        writer.close();
+    }
+
+    /**
+     * Print statistics about the latest execution to System.out.
+     *
+     * @throws IOException
+     */
+    public void printStats() throws IOException {
+
+        System.out
+                .println("=============  FHMDS ALGORITHM v.2.34 Stats =============");
+        if (debug) {
+            System.out.println("k " + k + " Transaction count per batch:"
+                    + number_of_transactions_batch + " win size: "
+                    + win_size);
+        }
+        System.out.println(" Processed batch count: " + processedBatchCount);
+        System.out.println(" Total time ~ " + (endTimestamp - startTimestamp)
+                + " ms");
+        System.out.println(" Candidate count: " + total);
+        System.out.println("======================================================");
+    }
+
+
+	private void writeOut(int[] prefix, int prefixLength, int item, float utility) throws IOException {
+		huiCount++; // increase the number of high utility itemsets found
+
+		//Create a string buffer
+		StringBuilder buffer = new StringBuilder();
+		// append the prefix
+		for (int i = 0; i < prefixLength; i++) {
+			buffer.append(prefix[i]);
+			buffer.append(' ');
 		}
-		construct_time = construct_time + (System.currentTimeMillis() - temp);
-		// return the utility list of pXY.
-		return pxyUL;
-	}
-
-	/**
-	 * Do a binary search to find the element with a given tid in a utility list
-	 * 
-	 * @param ulist
-	 *            the utility list
-	 * @param tid
-	 *            the tid
-	 * @return the element or null if none has the tid.
-	 */
-	private Element findElementWithTID(List<Element> elements, int tid) {
-		List<Element> list = elements;
-
-		// perform a binary search to check if the subset appears in level k-1.
-		int first = 0;
-		int last = list.size() - 1;
-
-		// the binary search
-		while (first <= last) {
-			int middle = (first + last) >>> 1; // divide by 2
-
-			if (list.get(middle).tid < tid) {
-				first = middle + 1; // the itemset compared is larger than the
-									// subset according to the lexical order
-			} else if (list.get(middle).tid > tid) {
-				last = middle - 1; // the itemset compared is smaller than the
-									// subset is smaller according to the
-									// lexical order
-			} else {
-				return list.get(middle);
-			}
-		}
-		return null;
-	}
-	
-	/**
-	 * Write the result to a file
-	 * @param path the output file path
-	 * @param appendToFile whether to append or overwrite to the result file
-	 * @throws IOException if an exception for reading/writing to file
-	 */
-	public void writeResultTofile(String path, boolean appendToFile) throws IOException {
-		processedBatchCount++;
-		
-		BufferedWriter writer = new BufferedWriter(new FileWriter(path, appendToFile));
-		
-		if(appendToFile){
-			writer.newLine();
-			writer.write("@NEXT_BATCH");
-			writer.newLine();
-		}
-
-		Iterator<Itemset> iter = top_k_hui.iterator();
-		while (iter.hasNext()) {
-			StringBuffer buffer = new StringBuffer();
-			Itemset itemset = (Itemset) iter.next();
-			
-			// append the prefix
-			for (int i = 0; i < itemset.itemset.length; i++) {
-				buffer.append(itemset.itemset[i]);
-				buffer.append(' ');
-			}
-			
-			// append the utility value
-			buffer.append(" #UTIL: ");
-			buffer.append(itemset.utility);
-			
-			// write to file
-			writer.write(buffer.toString());
-			if(iter.hasNext()){
-				writer.newLine();
-			}
-		}
-		writer.close();
-	}
-
-	/**
-	 * Print statistics about the latest execution to System.out.
-	 * 
-	 * @throws IOException
-	 */
-	public void printStats() throws IOException {
-
-		System.out
-				.println("=============  FHMDS ALGORITHM v.2.34 Stats =============");
-		if(debug){
-			System.out.println("k " + k + " Transaction count per batch:"
-				+ number_of_transactions_batch + " win size: "
-				+ win_size);
-		}
-		System.out.println(" Processed batch count: " + processedBatchCount);
-		System.out.println(" Total time ~ " + (endTimestamp - startTimestamp)
-				+ " ms");
-		System.out.println(" Candidate count: " + total);
-		System.out.println("======================================================");
+		// append the last item
+		buffer.append(item);
+		// append the utility value
+		buffer.append(" #UTIL: ");
+		buffer.append(utility);
+		// write to file
+		writer.write(buffer.toString());
+		writer.newLine();
 	}
 }
