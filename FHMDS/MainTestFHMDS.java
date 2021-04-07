@@ -18,19 +18,19 @@ public class MainTestFHMDS {
 
 	public static void main(String[] args) throws IOException {
 		
-		String input = ".//retail1.txt";
+		String input = ".//bigRetailUncertain.txt";
 		String output = ".//output.txt";
 
 		int min_utility = 30;
-		float min_Pro = (float) 0.1;
+		float min_Pro = (float) 0.2;
 		
 		//int k =  5;
 		
 		// Win size is the number of batches in a window
-		int win_size = 2;
+		int win_size = 4;
 		
 		// number_of_transactions_batch is the number of transactions in a batch
-		int number_of_transactions_batch = 2;
+		int number_of_transactions_batch = 3;
 
 		// Run the algorithm
 		AlgoFHM_DS algorithm = new AlgoFHM_DS();
